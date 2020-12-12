@@ -252,6 +252,25 @@ class QuantizationEnv:
                 d[idx_str]['gid'] = gid
                 d[idx_str]['is_pred'] = str(qid) in list(map(str, self.learnable_qids))
 
+        # TODO: dangling weight quantizer should be represented as individual group in AdjacentQuantizers
+        extracted_qidlist = list(map(lambda q: q['qid'], d.values()))
+        for wqid, wqmod in self.qctrl.weight_quantizers.items():
+            if str(wqid) not in extracted_qidlist:
+                qid=wqid
+                nodekey=qid_nodekey_map[qid]
+                q_nx_nodeid=nodekey.split()[0]
+                idx_str = '-'.join([q_nx_nodeid, str(qid)])
+
+                d[idx_str] = OrderedDict()
+                d[idx_str]['qid'] = str(qid)
+                d[idx_str]['q_nx_nodeid']  = q_nx_nodeid
+                d[idx_str]['q_nx_nodekey'] = nodekey
+                d[idx_str]['state_scope'] = qid.scope
+                d[idx_str]['gemm_nx_nodekey'] = list(map(lambda x: qid_nodekey_map[x[0]], 
+                                                    self._groups_of_adjacent_quantizers._groups_of_adjacent_quantizers[gid].weight_quantizers))
+                d[idx_str]['gid'] = gid
+                d[idx_str]['is_pred'] = str(qid) in list(map(str, self.learnable_qids))
+        
         # quantizer_table index is QuantizerId in string prepended with its quantize node id in NNCFGraph
         df = pd.DataFrame.from_dict(d, orient='index')
         quantizer_table = df.loc[natsorted(df.index)]
@@ -319,10 +338,11 @@ class QuantizationEnv:
 
                             # Extract list of qid of adjacent quantizer in the group, then apply same action to them in the master_df
                             group_id = self._groups_of_adjacent_quantizers.get_group_id_for_quantizer(self.master_df.qmodule[nodestr])
-                            qid_in_group = list(map(lambda qid_qmod_pair: qid_qmod_pair[0],
-                                                    self._groups_of_adjacent_quantizers.get_adjacent_quantizers_by_group_id(group_id)))
-                            for qid in qid_in_group:
-                                self.master_df.loc[self.master_df.qid == str(qid), 'action'] = new_bit
+                            if group_id is not None: # None should be dangling quantizers
+                                qid_in_group = list(map(lambda qid_qmod_pair: qid_qmod_pair[0],
+                                                        self._groups_of_adjacent_quantizers.get_adjacent_quantizers_by_group_id(group_id)))
+                                for qid in qid_in_group:
+                                    self.master_df.loc[self.master_df.qid == str(qid), 'action'] = new_bit
 
                     #strategy update here
                     self.strategy = self.master_df['action']
@@ -519,6 +539,16 @@ class QuantizationEnv:
                 feature['ifm_size']         = np.prod(m._input_shape[-1]) # feature nodes
                 feature['prev_action']      = 0.0 # placeholder  
             
+            elif isinstance(m, (nn.Embedding, nn.EmbeddingBag)):
+                feature['conv_dw']          = 0.0 
+                feature['cin']              = m.weight.shape[0]
+                feature['cout']             = m.weight.shape[1]
+                feature['stride']           = 0.0
+                feature['kernel']           = 1.0
+                feature['param']            = np.prod(m.weight.size())     
+                feature['ifm_size']         = np.prod(m._input_shape[-1]) # feature nodes
+                feature['prev_action']      = 0.0 # placeholder  
+
             else:
                 raise NotImplementedError("State embedding extraction of {}".format(m.__class__.__name__))
 
@@ -535,7 +565,7 @@ class QuantizationEnv:
             feature['param']       = 0.0     
             feature['prev_action'] = 0.0 
 
-            if len(input_shape) != 4 and len(input_shape) != 2:
+            if len(input_shape) != 4 and len(input_shape) != 2 and len(input_shape) != 3:
                 raise NotImplementedError("A design is required to cater this scenario. Pls. report to maintainer")
 
         elif isinstance(qid, InputQuantizerId):
