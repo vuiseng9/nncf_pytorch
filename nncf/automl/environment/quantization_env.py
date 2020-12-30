@@ -377,19 +377,9 @@ class QuantizationEnv:
         self.qmodel.rebuild_graph()
 
 
-    def _adaptbn(self):
-        train_mode = self.qmodel.training
-        if not train_mode:
-            self.qmodel.train()
-
+    def _run_quantization_pipeline(self, finetune):
         self.qctrl.run_batchnorm_adaptation(self.qctrl.quantization_config)
 
-        if not train_mode:
-            self.qmodel.eval()
-
-
-    def _run_quantization_pipeline(self, finetune):
-        self._adaptbn()
         if finetune:
             raise NotImplementedError("Post-Quantization fine tuning is not implemented.")
         with torch.no_grad():
