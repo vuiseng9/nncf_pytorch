@@ -30,19 +30,20 @@
         },
         "initializer": {
             "batchnorm_adaptation": {
-                "num_bn_adaptation_samples": 3500
+                "num_bn_adaptation_samples": 4000
             },
             "range":
             {
                 "type": "mean_min_max",
-                "num_init_samples": 1000
+                "num_init_samples": 1500
             },
             "precision": {
                 "type": "autoq",
                 "bits": [2, 4, 8],
                 "iter_number": 600,
                 "compression_ratio": 0.15,
-                "eval_subset_ratio": 0.20
+                "eval_subset_ratio": 0.20,
+                "dump_init_precision_data": true
             }
         }
     }
