@@ -207,7 +207,7 @@ class QuantizationEnv:
             dump_dir = self.config.get('log_dir', None)
             if dump_dir is None:
                 dump_dir = DEBUG_LOG_DIR
-            self.dump_dir = Path(dump_dir) / Path("AutoQ_env_dump")
+            self.dump_dir = Path(dump_dir) / Path("autoq_env_dump")
             self.dump_dir.mkdir(parents=True, exist_ok=True)
             # Serialize Q.Env information. Note that these functions should be at the end of Q.Env Initialization.
             self._dump_master_df()
