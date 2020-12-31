@@ -577,9 +577,6 @@ class HAWQDescriptor(TestCaseDescriptor):
     set_chosen_config_spy = None
     hessian_trace_estimator_spy = None
 
-    def __init__(self):
-        super().__init__()
-
     def batch_for_init(self, batch_size_init: int):
         self.batch_size_init = batch_size_init
         return self
@@ -617,9 +614,6 @@ class HAWQDescriptor(TestCaseDescriptor):
 
 class AutoQDescriptor(TestCaseDescriptor):
     subset_ratio_: float = 1.0
-
-    def __init__(self):
-        super().__init__()
 
     def subset_ratio(self, subset_ratio_: float):
         self.subset_ratio_ = subset_ratio_

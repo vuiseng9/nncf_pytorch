@@ -226,7 +226,7 @@ class DataLoaderBNAdaptationRunner(DataLoaderBaseRunner):
 
     def _run_model_inference(self, data_loader, num_init_steps, device):
         num_bn_forget_steps = self.num_bn_forget_steps
-        bar_format = '{l_bar}{bar} |{n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+        # bar_format = '{l_bar}{bar} |{n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
         def set_bn_momentum(module, momentum_value):
             module.momentum = momentum_value
