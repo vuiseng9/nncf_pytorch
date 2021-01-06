@@ -32,7 +32,6 @@ import pandas as pd
 import re
 from io import StringIO
 from copy import deepcopy
-from types import SimpleNamespace
 from torch.utils.tensorboard import SummaryWriter
 
 class AutoQPrecisionInitializer:
@@ -56,6 +55,9 @@ class AutoQPrecisionInitializer:
                 dump_dir = DEBUG_LOG_DIR
             self.dump_dir = Path(dump_dir) / Path("autoq_agent_dump")
             self.dump_dir.mkdir(parents=True, exist_ok=True)
+
+            self.policy_dict=OrderedDict() #key: episode
+            self.best_policy_dict=OrderedDict() #key: episode
 
             self.init_args.config['episodic_nncfcfg'] = osp.join(self.dump_dir, "episodic_nncfcfg")
             os.makedirs(self.init_args.config['episodic_nncfcfg'], exist_ok=True)
@@ -86,7 +88,7 @@ class AutoQPrecisionInitializer:
         if self._dump_autoq_data:
             self.tb_writer.add_text('AutoQ/state_embedding', env.master_df[env.state_list].to_markdown())
 
-        best_policy, best_reward = self._search(agent, env, self.init_args.config)
+        best_policy, best_reward = self._search(agent, env, self.autoq_cfg['iter_number'])
 
         end_ts = datetime.now()
 
@@ -103,23 +105,9 @@ class AutoQPrecisionInitializer:
             self.quantization_controller.all_quantizations[qid].num_bits = bw
 
 
-    def _search(self, agent, env, config):
-        assert config.get('compression', {}).get('initializer', {}).get('precision', {}).get('type', {}) == 'autoq'
-        autoq_cfg = config.get('compression', {}).get('initializer', {}).get('precision')
-
-        args = SimpleNamespace(**autoq_cfg)
-
-        policy_dict=OrderedDict() #key: episode
-        best_policy_dict=OrderedDict() #key: episode
-
-        num_episode = args.iter_number
-
-        # best record
+    def _search(self, agent, env, num_episode):
         best_reward = -math.inf
-        best_policy = []
-
-        agent.is_training = True
-        step = episode = episode_steps = 0
+        episode = 0
         episode_reward = 0.
         observation = None
         T = []  # Transition buffer
@@ -143,15 +131,13 @@ class AutoQPrecisionInitializer:
             T.append([reward, deepcopy(observation), deepcopy(observation2), action, done])
 
             # update
-            step += 1
-            episode_steps += 1
             episode_reward += reward
             observation = deepcopy(observation2)
 
             if done:  # end of episode
                 logger.info(
-                    '#{}: episode_reward:{:.3f} acc: {:.3f}, model_ratio: {:.3f}, model_size(MB): {:.2f}\n'.format(
-                        episode, episode_reward, info['accuracy'], info['model_ratio'], info['model_size']/8e6))
+                    '## Episode[{}], reward: {:.3f}, acc: {:.3f}, model_ratio: {:.3f}, model_size(MB): {:.2f}\n' \
+                    .format(episode, episode_reward, info['accuracy'], info['model_ratio'], info['model_size']/8e6))
 
                 final_reward = T[-1][0]
 
@@ -178,9 +164,7 @@ class AutoQPrecisionInitializer:
 
                 # reset
                 observation = None
-                episode_steps = 0
                 episode_reward = 0.
-                episode += 1
                 T = []
 
                 value_loss = agent.get_value_loss()
@@ -196,55 +180,69 @@ class AutoQPrecisionInitializer:
                 if final_reward > best_reward:
                     best_reward = final_reward
                     best_policy = env.master_df['action']
+                    info_tuple = (episode, best_reward, info['accuracy'], info['model_ratio'])
+                    self._dump_best_episode(info_tuple, bit_stats_df, env)
+                    log_str = '## Episode[{}] New best policy: {}, reward: {:.3f}, acc: {:.3f}, model_ratio: {:.3f}'\
+                        .format(episode, best_policy.values.tolist(), best_reward,
+                                info['accuracy'], info['model_ratio'])
+                    logger.info("\033[92m {}\033[00m" .format(log_str))
 
-                    if self._dump_autoq_data:
-                        best_policy_dict[episode]=env.master_df['action'].astype('int')
-                        pd.DataFrame(
-                            best_policy_dict.values(), index=best_policy_dict.keys()).T.sort_index(
-                                axis=1, ascending=False).to_csv(
-                                    osp.join(self.dump_dir, "best_policy.csv"), index_label="nodestr")
+                episodic_info_tuple = (episode, final_reward, best_reward,
+                                       info['accuracy'], info['model_ratio'],
+                                       value_loss, policy_loss, delta)
+                self._dump_episode(episodic_info_tuple, bit_stats_df, env, agent)
 
-                        info_tuple = (episode, best_reward, info['accuracy'], info['model_ratio'])
-                        best_policy_string = self._generate_tensorboard_logging_string(
-                            bit_stats_df, env.master_df, info_tuple, env.skip_constraint)
-                        self.tb_writer.add_text('AutoQ/best_policy', best_policy_string, episode)
-
-
-                if self._dump_autoq_data:
-                    # Save nncf compression cfg
-                    episode_cfgfile = osp.join(env.config['episodic_nncfcfg'], '{0:03d}_nncfcfg.json'.format(episode))
-                    with open(episode_cfgfile, "w") as outfile:
-                        json.dump(env.config, outfile, indent=4, sort_keys=False)
-
-                    policy_dict[episode]=env.master_df['action'].astype('int')
-                    pd.DataFrame(
-                        policy_dict.values(), index=policy_dict.keys()).T.sort_index(axis=1, ascending=False).to_csv(
-                            osp.join(self.dump_dir, "policy_per_episode.csv"), index_label="nodestr")
-
-                    # log current episode policy and feedback as text
-                    info_tuple = (episode, final_reward, info['accuracy'], info['model_ratio'])
-                    current_strategy_string = self._generate_tensorboard_logging_string(
-                        bit_stats_df, env.master_df, info_tuple, env.skip_constraint)
-                    self.tb_writer.add_text('AutoQ/current_policy', current_strategy_string, episode)
-
-                    # visualization over episode
-                    log_tuple = (episode, final_reward, best_reward,
-                                 info['accuracy'], info['model_ratio'],
-                                value_loss, policy_loss, delta)
-                    self._add_to_tensorboard(self.tb_writer, log_tuple)
-
-                    # [optional] save intermideate model
-                    if episode % int((num_episode+10)/10) == 0:
-                        agent.save_model(self.dump_dir)
-
-
-                logger.info('best reward: {}\n'.format(best_reward))
-                logger.info('best policy: {}\n'.format(best_policy))
+                # save intermideate model
+                if episode % int((num_episode+10)/10) == 0:
+                    agent.save_model(self.dump_dir)
 
                 episode_elapsed = time.time() - episode_start_ts
-                logger.info('\n### Episode[{}] Elapsed: {:.3f}\n'.format(episode-1, episode_elapsed))
+
+                logger.info('## Episode[{}] Policy: \n{}\n'.format(episode, env.master_df['action'].to_string()))
+                logger.info('## Episode[{}] Elapsed: {:.3f}\n'.format(episode, episode_elapsed))
+
+                episode += 1
 
         return best_policy, best_reward
+
+
+    def _dump_best_episode(self, info_tuple, bit_stats_df, env):
+        if self._dump_autoq_data:
+            episode = info_tuple[0]
+            self.best_policy_dict[episode]=env.master_df['action'].astype('int')
+
+            pd.DataFrame(
+                self.best_policy_dict.values(), index=self.best_policy_dict.keys()).T.sort_index(
+                    axis=1, ascending=False).to_csv(
+                        osp.join(self.dump_dir, "best_policy.csv"), index_label="nodestr")
+
+            best_policy_string = self._generate_tensorboard_logging_string(
+                bit_stats_df, env.master_df, info_tuple, env.skip_constraint)
+            self.tb_writer.add_text('AutoQ/best_policy', best_policy_string, episode)
+
+
+    def _dump_episode(self, episodic_info_tuple, bit_stats_df, env, agent):
+        if self._dump_autoq_data:
+            episode, final_reward, _, accuracy, model_ratio, _, _, _ = episodic_info_tuple
+
+            # Save nncf compression cfg
+            episode_cfgfile = osp.join(env.config['episodic_nncfcfg'], '{0:03d}_nncfcfg.json'.format(episode))
+            with open(episode_cfgfile, "w") as outfile:
+                json.dump(env.config, outfile, indent=4, sort_keys=False)
+
+            self.policy_dict[episode]=env.master_df['action'].astype('int')
+            pd.DataFrame(
+                self.policy_dict.values(), index=self.policy_dict.keys()).T.sort_index(axis=1, ascending=False).to_csv(
+                    osp.join(self.dump_dir, "policy_per_episode.csv"), index_label="nodestr")
+
+            # log current episode policy and feedback as text
+            info_tuple = (episode, final_reward, accuracy, model_ratio)
+            current_strategy_string = self._generate_tensorboard_logging_string(
+                bit_stats_df, env.master_df, info_tuple, env.skip_constraint)
+            self.tb_writer.add_text('AutoQ/current_policy', current_strategy_string, episode)
+
+            # visualization over episode
+            self._add_to_tensorboard(self.tb_writer, episodic_info_tuple)
 
 
     def _add_to_tensorboard(self, tb_writer, log_tuple):
@@ -270,7 +268,7 @@ class AutoQPrecisionInitializer:
         text_string += "Accuracy: {:.3f}, Model_Size_Ratio: {:.3f}\n\n\n".format(accuracy, model_ratio)
 
         for _, row_id in enumerate(qdf.index.tolist()):
-            Qtype = ' (WQ)' if qdf.is_wt_quantizer[row_id] else ' (AQ)'
+            Qtype = '(WQ)' if qdf.is_wt_quantizer[row_id] else '(AQ)'
 
             if skip_constraint is False and \
                 qdf.loc[row_id, 'action'] != qdf.loc[row_id, 'unconstrained_action']:
