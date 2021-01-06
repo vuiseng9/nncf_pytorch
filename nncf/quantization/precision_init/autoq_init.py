@@ -88,7 +88,7 @@ class AutoQPrecisionInitializer:
         if self._dump_autoq_data:
             self.tb_writer.add_text('AutoQ/state_embedding', env.master_df[env.state_list].to_markdown())
 
-        best_policy, best_reward = self._search(agent, env, self.autoq_cfg['iter_number'])
+        best_policy, best_reward = self._search(agent, env)
 
         end_ts = datetime.now()
 
@@ -105,14 +105,14 @@ class AutoQPrecisionInitializer:
             self.quantization_controller.all_quantizations[qid].num_bits = bw
 
 
-    def _search(self, agent, env, num_episode):
+    def _search(self, agent, env):
         best_reward = -math.inf
         episode = 0
         episode_reward = 0.
         observation = None
         T = []  # Transition buffer
 
-        while episode < num_episode:  # counting based on episode
+        while episode < self.autoq_cfg['iter_number']:  # counting based on episode
             episode_start_ts = time.time()
             if observation is None:
                 # reset if it is the start of episode
@@ -192,10 +192,6 @@ class AutoQPrecisionInitializer:
                                        value_loss, policy_loss, delta)
                 self._dump_episode(episodic_info_tuple, bit_stats_df, env, agent)
 
-                # save intermideate model
-                if episode % int((num_episode+10)/10) == 0:
-                    agent.save_model(self.dump_dir)
-
                 episode_elapsed = time.time() - episode_start_ts
 
                 logger.info('## Episode[{}] Policy: \n{}\n'.format(episode, env.master_df['action'].to_string()))
@@ -243,6 +239,9 @@ class AutoQPrecisionInitializer:
 
             # visualization over episode
             self._add_to_tensorboard(self.tb_writer, episodic_info_tuple)
+
+            if episode % int((self.autoq_cfg['iter_number']+10)/10) == 0:
+                agent.save_model(self.dump_dir)
 
 
     def _add_to_tensorboard(self, tb_writer, log_tuple):
