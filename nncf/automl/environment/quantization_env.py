@@ -26,7 +26,6 @@ import torch.utils.data.distributed
 
 import ctypes
 import json
-import math
 import numpy as np
 import pandas as pd
 from copy import deepcopy
@@ -198,8 +197,6 @@ class QuantizationEnv:
         self._evaluate_pretrained_model()
         self.qmodel_init_sd = deepcopy(self.qmodel.state_dict())
 
-        # init reward
-        self.best_reward = -math.inf #TODO: move reward to search manager
         self.reset()
 
         self._dump_autoq_data = self.autoq_cfg.get('dump_init_precision_data', False)
@@ -370,7 +367,7 @@ class QuantizationEnv:
 
         with torch.no_grad():
             self.pretrained_score = self.eval_fn(self.qmodel, self.eval_loader)
-            logger.info("Pretrained Score: {:.2f}".format(self.pretrained_score))
+            logger.info("Pretrained Score: {:.3f}".format(self.pretrained_score))
 
         self.qctrl.enable_weight_quantization()
         self.qctrl.enable_activation_quantization()
@@ -384,7 +381,7 @@ class QuantizationEnv:
             raise NotImplementedError("Post-Quantization fine tuning is not implemented.")
         with torch.no_grad():
             quantized_score = self.eval_fn(self.qmodel, self.eval_loader)
-            logger.info("[Q.Env] Post-Init: {:.3f}".format(quantized_score))
+            logger.info("[Q.Env] Quantized Score: {:.3f}".format(quantized_score))
         return quantized_score
 
 
@@ -468,13 +465,6 @@ class QuantizationEnv:
         reward = self.reward(quantized_score, current_model_ratio)
 
         info_set = {'model_ratio': current_model_ratio, 'accuracy': quantized_score, 'model_size': current_model_size}
-
-        if reward > self.best_reward:
-            self.best_reward = reward
-            log_str = 'New best policy: {}, reward: {:.3f}, acc: {:.3f}, model_ratio: {:.3f}, model_size(mb): {:.3f}'\
-                      .format(collected_strategy, self.best_reward, quantized_score,
-                              current_model_ratio, current_model_size/8000000)
-            logger.info("\033[92m {}\033[00m" .format(log_str))
 
         obs = self.get_normalized_obs(len(collected_strategy)-1)
         done = True
