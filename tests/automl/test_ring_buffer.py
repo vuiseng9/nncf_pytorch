@@ -9,7 +9,7 @@ def test_create_ring_buffer():
 
 
 def test_append():
-    def assert_elements(b, ref):
+    def assert_elements(b: RingBuffer, ref: RingBuffer):
         assert len(b) == len(ref)
         for idx in range(b.maxlen):
             if idx >= len(ref):
