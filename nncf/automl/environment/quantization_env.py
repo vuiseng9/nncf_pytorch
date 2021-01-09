@@ -14,8 +14,8 @@
 import logging
 
 import os.path as osp
-from typing import List, Dict
 from pathlib import Path
+from typing import List, Dict, Union, Tuple, Callable
 
 import torch
 import torch.nn as nn
@@ -32,26 +32,28 @@ from copy import deepcopy
 from collections import OrderedDict
 from natsort import natsorted
 
+from nncf import NNCFConfig
 from nncf.debug import is_debug, DEBUG_LOG_DIR
 from nncf.nncf_logger import logger
 from nncf.hw_config import HWConfigType
 from nncf.initialization import PartialDataLoader
 from nncf.quantization.layers import BaseQuantizer
+from nncf.quantization.algo import QuantizationController, NNCFNetwork
 from nncf.quantization.precision_init.adjacent_quantizers import GroupsOfAdjacentQuantizers
 from nncf.quantization.quantizer_id import QuantizerId, WeightQuantizerId, \
     NonWeightQuantizerId, InputQuantizerId, FunctionQuantizerId
 
 from sklearn.preprocessing import MinMaxScaler
 
-def find_qid_by_str(quantization_controller, qid_str):
-    for _qid, _q in quantization_controller.all_quantizations.items():
+def find_qid_by_str(qctrl: QuantizationController, qid_str: str) -> QuantizerId:
+    for _qid, _q in qctrl.all_quantizations.items():
         if qid_str == str(_qid):
             return _qid
     return None
 
 class ModelSizeCalculator:
     FLOAT_BITWIDTH = ctypes.sizeof(ctypes.c_float) * 8
-    def __init__(self, qmodel, per_quantizer_bw_space):
+    def __init__(self, qmodel: NNCFNetwork, per_quantizer_bw_space: Dict[QuantizerId, List[int]]):
         self._bw_space_map = OrderedDict()
         self._nparam_map = OrderedDict()
         for qid, bw_space in per_quantizer_bw_space.items():
@@ -68,16 +70,16 @@ class ModelSizeCalculator:
     def __call__(self, per_quantizer_bw):
         return self.get_model_size(per_quantizer_bw)
 
-    def _calc_min_max_model_size(self):
+    def _calc_min_max_model_size(self) -> Tuple[Union[int, float], Union[int, float]]:
         nparam_array = np.array(list(self._nparam_map.values()))
         min_size = np.sum(nparam_array * np.array(list(map(min, self._bw_space_map.values()))))
         max_size = np.sum(nparam_array * np.array(list(map(max, self._bw_space_map.values()))))
         return min_size, max_size
 
-    def get_uniform_bit_model_size(self, uniform_bitwidth: int):
+    def get_uniform_bit_model_size(self, uniform_bitwidth: int) -> Union[int, float]:
         return np.sum(np.array(list(self._nparam_map.values())*uniform_bitwidth))
 
-    def get_model_size(self, per_quantizer_bw: OrderedDict):
+    def get_model_size(self, per_quantizer_bw: Dict[QuantizerId, int]) -> Union[int, float]:
         model_size = 0
         for qid, nparam in self._nparam_map.items():
             if qid in per_quantizer_bw:
@@ -88,17 +90,17 @@ class ModelSizeCalculator:
                 model_size += nparam * ModelSizeCalculator.FLOAT_BITWIDTH
         return model_size
 
-    def get_model_size_ratio(self, per_quantizer_bw: OrderedDict):
+    def get_model_size_ratio(self, per_quantizer_bw: Dict[QuantizerId, int]) -> float:
         return self.get_model_size(per_quantizer_bw)/self.fp_model_size
 
 
 class QuantizationEnv:
     # pylint:disable=too-many-branches,too-many-statements
     def __init__(self,
-                 quantization_controller,
-                 eval_loader,
-                 eval_fn,
-                 config: 'NNCFConfig'):
+                 quantization_controller: QuantizationController,
+                 eval_loader: torch.utils.data.DataLoader,
+                 eval_fn: Callable[[nn.Module, torch.utils.data.DataLoader], float],
+                 config: NNCFConfig):
 
         logger.info("[Q.Env] Instantiating NNCF Quantization Environment")
         self.qctrl = quantization_controller
@@ -222,7 +224,7 @@ class QuantizationEnv:
         self.master_df['unconstrained_action'] = 0
 
 
-    def _create_quantizer_table(self):
+    def _create_quantizer_table(self) -> pd.DataFrame:
         # Create a mapping of qid to its adjacent quantizer group id
         adjq_gid_map = OrderedDict.fromkeys(self.qctrl.all_quantizations.keys())
         for qid, qmod in self.qctrl.all_quantizations.items():
@@ -270,7 +272,10 @@ class QuantizationEnv:
         return quantizer_table
 
 
-    def _get_state_space(self, quantization_controller, quantized_model, quantizer_table):
+    def _get_state_space(self,
+                         quantization_controller: QuantizationController,
+                         quantized_model: NNCFNetwork,
+                         quantizer_table: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
         def annotate_learnable_module_io_shape(model):
             def annotate_io_shape(module, input_, output):
                 if hasattr(module, 'weight') or isinstance(module, BaseQuantizer):
@@ -302,7 +307,7 @@ class QuantizationEnv:
         return master_df, state_list
 
 
-    def _get_layer_attr(self, row):
+    def _get_layer_attr(self, row: pd.Series) -> pd.Series:
         m = row.state_module
         qid = row.qid_obj
         feature = OrderedDict()
@@ -374,7 +379,7 @@ class QuantizationEnv:
         self.qmodel.rebuild_graph()
 
 
-    def _run_quantization_pipeline(self, finetune):
+    def _run_quantization_pipeline(self, finetune=False) -> float:
         self.qctrl.run_batchnorm_adaptation(self.qctrl.quantization_config)
 
         if finetune:
@@ -385,14 +390,14 @@ class QuantizationEnv:
         return quantized_score
 
 
-    def _get_quantizer_bitwidth(self):
+    def _get_quantizer_bitwidth(self) -> Dict[BaseQuantizer, int]:
         assert len(set(self.model_bitwidth_space) - set(self.master_df.action.values)) >= 0, \
             "there is bitwidth choice not within model bitwidth space"
         return OrderedDict(zip(self.master_df.qid_obj, self.master_df.action))
 
 
-    def _constrain_model_size(self, collected_strategy: List, skip=False):
-        def lower_bitwidth(bw, bw_space):
+    def _constrain_model_size(self, collected_strategy: List, skip=False) -> List:
+        def lower_bitwidth(bw: int, bw_space: List[int]) -> int:
             return bw_space[bw_space.index(bw)-1] if bw_space.index(bw) > 0 else bw
 
         # This function acts on self.master_df['action']
@@ -418,10 +423,10 @@ class QuantizationEnv:
 
         return self.master_df['action'].tolist()
 
-    def reward(self, acc, model_ratio):
+    def reward(self, acc: float, model_ratio: float) -> float:
         return (acc - self.pretrained_score) * 0.1
 
-    def step(self, action):
+    def step(self, action: Union[int, float]) -> Tuple:
         def is_final_step():
             return len(self.collected_strategy) == len(self.master_df)
 
@@ -443,7 +448,7 @@ class QuantizationEnv:
 
         return self.evaluate_strategy(self.collected_strategy, skip_constraint=self.skip_constraint)
 
-    def evaluate_strategy(self, collected_strategy: List, skip_constraint=True):
+    def evaluate_strategy(self, collected_strategy: List, skip_constraint=True) -> Tuple:
         assert len(collected_strategy) == len(self.master_df)
         if skip_constraint is not True:
             collected_strategy = self._constrain_model_size(collected_strategy)
@@ -471,11 +476,12 @@ class QuantizationEnv:
 
         return obs, reward, done, info_set
 
+
     def set_next_step_prev_action(self, idx, action):
         self.master_df.loc[self.master_df.index[idx], 'prev_action'] = action
 
 
-    def get_normalized_obs(self, idx):
+    def get_normalized_obs(self, idx: int) -> pd.Series:
         _df = self.master_df.loc[self.master_df.index, self.state_list]
         _df.loc[_df.index, self.state_list] = self.state_scaler.transform(_df[self.state_list])
         return _df.iloc[idx]
@@ -488,8 +494,8 @@ class QuantizationEnv:
 
 
     def _generate_qid_nodekey_map(self,
-                                  quantization_controller: 'QuantizationController',
-                                  quantized_network: 'NNCFNetwork'):
+                                  quantization_controller: QuantizationController,
+                                  quantized_network: NNCFNetwork) -> Dict[QuantizerId, str]:
         """
         Create a lookup mapping for each QuantizerId to its corresponding quantize node in network graph
         :param quantization_controller:
