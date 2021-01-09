@@ -6,6 +6,7 @@ from functools import partial
 from typing import Dict, Tuple, Any, Callable
 
 import torch
+from torch.utils.data import DataLoader
 from torch.nn.modules.loss import _Loss
 from tqdm import tqdm
 
@@ -92,7 +93,7 @@ def wrap_dataloader_for_init(data_loader) -> InitializingDataLoader:
 
 
 class PartialDataLoader:
-    def __init__(self, regular_data_loader: 'DataLoader', iter_ratio=1.0):
+    def __init__(self, regular_data_loader: DataLoader, iter_ratio=1.0):
         if iter_ratio < 0.0 or iter_ratio > 1.0:
             raise ValueError("iter_ratio must be within 0 to 1 range")
         self.data_loader = regular_data_loader
