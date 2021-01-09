@@ -12,7 +12,7 @@
 """
 
 from collections import OrderedDict
-from typing import Dict
+from typing import Dict, Tuple
 
 import os
 
@@ -34,8 +34,11 @@ from io import StringIO
 from copy import deepcopy
 from torch.utils.tensorboard import SummaryWriter
 
+
 class AutoQPrecisionInitializer:
-    def __init__(self, algo: 'QuantizationController', init_precision_config,
+    def __init__(self,
+                 algo: 'QuantizationController',
+                 init_precision_config: 'NNCFConfig',
                  init_args: AutoQPrecisionInitArgs):
         self.quantization_controller = algo
         self.init_args = init_args
@@ -105,7 +108,7 @@ class AutoQPrecisionInitializer:
             self.quantization_controller.all_quantizations[qid].num_bits = bw
 
 
-    def _search(self, agent, env):
+    def _search(self, agent: 'DDPG', env: 'QuantizationEnv') -> Tuple[pd.Series, float]:
         best_reward = -math.inf
         episode = 0
         episode_reward = 0.
@@ -202,7 +205,7 @@ class AutoQPrecisionInitializer:
         return best_policy, best_reward
 
 
-    def _dump_best_episode(self, info_tuple, bit_stats_df, env):
+    def _dump_best_episode(self, info_tuple: Tuple, bit_stats_df: pd.DataFrame, env: 'QuantizationEnv'):
         if self._dump_autoq_data:
             episode = info_tuple[0]
             self.best_policy_dict[episode]=env.master_df['action'].astype('int')
@@ -217,7 +220,9 @@ class AutoQPrecisionInitializer:
             self.tb_writer.add_text('AutoQ/best_policy', best_policy_string, episode)
 
 
-    def _dump_episode(self, episodic_info_tuple, bit_stats_df, env, agent):
+    def _dump_episode(self,
+                      episodic_info_tuple: Tuple, bit_stats_df: pd.DataFrame,
+                      env: 'QuantizationEnv', agent: 'DDPG'):
         if self._dump_autoq_data:
             episode, final_reward, _, accuracy, model_ratio, _, _, _ = episodic_info_tuple
 
@@ -244,7 +249,7 @@ class AutoQPrecisionInitializer:
                 agent.save_model(self.dump_dir)
 
 
-    def _add_to_tensorboard(self, tb_writer, log_tuple):
+    def _add_to_tensorboard(self, tb_writer: SummaryWriter, log_tuple: Tuple):
         episode, final_reward, best_reward, \
             accuracy, model_ratio, value_loss, \
                 policy_loss, delta = log_tuple
@@ -258,7 +263,9 @@ class AutoQPrecisionInitializer:
         tb_writer.add_scalar('AutoQ/agent/delta', delta, episode)
 
 
-    def _generate_tensorboard_logging_string(self, bit_stats_df, master_df, info_tuple, skip_constraint=False):
+    def _generate_tensorboard_logging_string(self,
+                                             bit_stats_df: pd.DataFrame, master_df: pd.DataFrame,
+                                             info_tuple: Tuple, skip_constraint=False) -> str:
         qdf = master_df # For readibility
         episode, reward, accuracy, model_ratio = info_tuple
 
@@ -282,7 +289,7 @@ class AutoQPrecisionInitializer:
 
         return text_string
 
-def map_precision(action):
+def map_precision(action: float) -> int:
     precision_set = [2,4,8]
     precision_set = np.array(sorted(precision_set))
     tuned_point = precision_set+3
