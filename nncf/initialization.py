@@ -284,11 +284,11 @@ def default_criterion_fn(outputs: Any, target: Any, criterion: Any) -> torch.Ten
 
 
 def register_default_init_args(nncf_config: 'NNCFConfig',
-                               train_loader,
+                               train_loader: torch.utils.data.DataLoader,
                                criterion: _Loss = None,
                                criterion_fn: Callable[[Any, Any, _Loss], torch.Tensor] = None,
-                               autoq_eval_fn=None,
-                               autoq_eval_loader=None,
+                               autoq_eval_fn: Callable[[torch.nn.Module, torch.utils.data.DataLoader], float]= None,
+                               autoq_eval_loader: torch.utils.data.DataLoader = None,
                                device='cuda') -> 'NNCFConfig':
 
     nncf_config.register_extra_structs([QuantizationRangeInitArgs(data_loader=train_loader,

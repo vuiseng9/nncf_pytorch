@@ -70,16 +70,16 @@ class ModelSizeCalculator:
     def __call__(self, per_quantizer_bw):
         return self.get_model_size(per_quantizer_bw)
 
-    def _calc_min_max_model_size(self) -> Tuple[Union[int, float], Union[int, float]]:
+    def _calc_min_max_model_size(self) -> Tuple[np.int64, np.int64]:
         nparam_array = np.array(list(self._nparam_map.values()))
         min_size = np.sum(nparam_array * np.array(list(map(min, self._bw_space_map.values()))))
         max_size = np.sum(nparam_array * np.array(list(map(max, self._bw_space_map.values()))))
         return min_size, max_size
 
-    def get_uniform_bit_model_size(self, uniform_bitwidth: int) -> Union[int, float]:
+    def get_uniform_bit_model_size(self, uniform_bitwidth: int) -> np.int64:
         return np.sum(np.array(list(self._nparam_map.values())*uniform_bitwidth))
 
-    def get_model_size(self, per_quantizer_bw: Dict[QuantizerId, int]) -> Union[int, float]:
+    def get_model_size(self, per_quantizer_bw: Dict[QuantizerId, int]) -> np.int64:
         model_size = 0
         for qid, nparam in self._nparam_map.items():
             if qid in per_quantizer_bw:
@@ -90,7 +90,7 @@ class ModelSizeCalculator:
                 model_size += nparam * ModelSizeCalculator.FLOAT_BITWIDTH
         return model_size
 
-    def get_model_size_ratio(self, per_quantizer_bw: Dict[QuantizerId, int]) -> float:
+    def get_model_size_ratio(self, per_quantizer_bw: Dict[QuantizerId, int]) -> np.float64:
         return self.get_model_size(per_quantizer_bw)/self.fp_model_size
 
 
