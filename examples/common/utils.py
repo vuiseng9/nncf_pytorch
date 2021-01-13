@@ -33,6 +33,7 @@ from examples.common.sample_config import SampleConfig
 from torch.utils.tensorboard import SummaryWriter
 from texttable import Texttable
 import mlflow
+import torch
 
 from examples.common.example_logger import logger as default_logger
 from nncf.utils import is_main_process
