@@ -1,5 +1,5 @@
 import math
-import logging
+
 from collections import OrderedDict
 
 from functools import partial
@@ -8,9 +8,8 @@ from typing import Dict, Tuple, Any, Callable
 import torch
 from torch.utils.data import DataLoader
 from torch.nn.modules.loss import _Loss
-from tqdm import tqdm
 
-from nncf.nncf_logger import logger as nncf_logger
+from nncf.progress_bar import ProgressBar
 from nncf.quantization.init_range import MinMaxInitializer, ThreeSigmaInitializer, MeanMinMaxInitializer
 from nncf.quantization.init_range import PercentileInitializer
 from nncf.structures import QuantizationPrecisionInitArgs, QuantizationRangeInitArgs, \
@@ -56,6 +55,9 @@ class InitializingDataLoader:
     def __next__(self) -> Any:
         loaded_item = next(self.data_loader_iter)
         return loaded_item
+
+    def __len__(self):
+        return len(self.data_loader)
 
     def get_inputs(self, dataloader_output: Any) -> Tuple[Tuple, Dict]:
         """Returns (args, kwargs) for the current model call to be made during the initialization process"""
@@ -124,22 +126,11 @@ class DataLoaderBaseRunner:
         self.progressbar_description = 'Algorithm initialization'
 
     def _run_model_inference(self, data_loader, num_init_steps, device):
-        bar_format = '{l_bar}{bar} |{n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
-        # with tqdm(
-        #         data_loader,
-        #         total=num_init_steps,
-        #         desc=self.progressbar_description,
-        #         bar_format=bar_format,
-        # ) as tqdm_it:
-        # for i, loaded_item in enumerate(tqdm_it):
-        for i, loaded_item in tqdm(
+        for i, loaded_item in ProgressBar(
                 enumerate(data_loader),
                 total=num_init_steps,
                 desc=self.progressbar_description,
-                bar_format=bar_format,
         ):
-        # for i, loaded_item in enumerate(data_loader):
-        #     print(i)
             if num_init_steps is not None and i >= num_init_steps:
                 break
             args_kwargs_tuple = data_loader.get_inputs(loaded_item)
@@ -154,21 +145,12 @@ class DataLoaderBaseRunner:
         original_device = next(iter(self.model.parameters())).device
         self.model.to(self.init_device)
 
-        class TQDMStream:
-            @classmethod
-            def write(cls, msg):
-                tqdm.write(msg, end='')
-
-        stream_handler = logging.StreamHandler(TQDMStream)
-        nncf_logger.addHandler(stream_handler)
-
         self._prepare_initialization()
         device = next(self.model.parameters()).device
         data_loader = wrap_dataloader_for_init(data_loader)
 
         with torch.no_grad():
             self._run_model_inference(data_loader, num_init_steps, device)
-            nncf_logger.removeHandler(stream_handler)
             self._apply_initializers()
 
         self.model.to(original_device)
@@ -227,7 +209,6 @@ class DataLoaderBNAdaptationRunner(DataLoaderBaseRunner):
 
     def _run_model_inference(self, data_loader, num_init_steps, device):
         num_bn_forget_steps = self.num_bn_forget_steps
-        # bar_format = '{l_bar}{bar} |{n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
         def set_bn_momentum(module, momentum_value):
             module.momentum = momentum_value
@@ -251,22 +232,11 @@ class DataLoaderBNAdaptationRunner(DataLoaderBaseRunner):
 
             self.model.apply(self._apply_to_batchnorms(restore_original_bn_momenta))
 
-            # for i, loaded_item in tqdm(
-            #         enumerate(data_loader),
-            #         total=num_init_steps,
-            #         desc=self.progressbar_description,
-            #         bar_format=bar_format,
-            # ):
-            # with tqdm(
-            #     data_loader,
-            #     total=num_init_steps,
-            #     desc=self.progressbar_description,
-            #     bar_format=bar_format,
-            # ) as tqdm_it:
-            # for i, loaded_item in enumerate(tqdm_it):
-
-            for i, loaded_item in enumerate(data_loader):
-                print(i)
+            for i, loaded_item in ProgressBar(
+                    enumerate(data_loader),
+                    total=num_init_steps,
+                    desc=self.progressbar_description
+            ):
                 if num_init_steps is not None and i >= num_init_steps:
                     break
                 args_kwargs_tuple = data_loader.get_inputs(loaded_item)
@@ -287,7 +257,7 @@ def register_default_init_args(nncf_config: 'NNCFConfig',
                                train_loader: torch.utils.data.DataLoader,
                                criterion: _Loss = None,
                                criterion_fn: Callable[[Any, Any, _Loss], torch.Tensor] = None,
-                               autoq_eval_fn: Callable[[torch.nn.Module, torch.utils.data.DataLoader], float]= None,
+                               autoq_eval_fn: Callable[[torch.nn.Module, torch.utils.data.DataLoader], float] = None,
                                autoq_eval_loader: torch.utils.data.DataLoader = None,
                                device='cuda') -> 'NNCFConfig':
 
@@ -308,7 +278,7 @@ def register_default_init_args(nncf_config: 'NNCFConfig',
         if not autoq_eval_loader:
             autoq_eval_loader = train_loader
         nncf_config.register_extra_structs([AutoQPrecisionInitArgs(data_loader=autoq_eval_loader,
-                                                                    eval_fn=autoq_eval_fn,
-                                                                    nncf_config=nncf_config)])
+                                                                   eval_fn=autoq_eval_fn,
+                                                                   nncf_config=nncf_config)])
 
     return nncf_config
