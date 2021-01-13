@@ -150,6 +150,9 @@ def configure_device(current_gpu, config: SampleConfig):
 
     config.device = get_device(config)
 
+    if config.execution_mode == ExecutionMode.SINGLE_GPU:
+        torch.cuda.set_device(config.current_gpu)
+
 
 def configure_logging(sample_logger, config):
     config.tb = SummaryWriter(config.log_dir)

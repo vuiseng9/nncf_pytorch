@@ -114,10 +114,6 @@ def inception_criterion_fn(model_outputs: Any, target: Any, criterion: _Loss) ->
 # pylint:disable=too-many-branches
 def main_worker(current_gpu, config: SampleConfig):
     configure_device(current_gpu, config)
-    # TODO: Do we need this?
-    if config.execution_mode == ExecutionMode.SINGLE_GPU:
-        torch.cuda.set_device(config.current_gpu)
-
     config.mlflow = SafeMLFLow(config)
     if is_main_process():
         configure_logging(logger, config)
