@@ -1,16 +1,50 @@
+"""
+ Modifications Copyright (c) 2020 Intel Corporation
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+      http://www.apache.org/licenses/LICENSE-2.0
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+"""
+
+# DDPG implementation modified from:
+# https://github.com/mit-han-lab/haq/blob/master/lib/rl/ddpg.py
+# https://github.com/mit-han-lab/haq/blob/master/lib/utils/utils.py
+
 import numpy as np
 
 import torch
 import torch.nn as nn
+from torch.autograd import Variable
 from torch.optim import Adam
+from types import SimpleNamespace
 
 from nncf.automl.agent.ddpg.memory import SequentialMemory
-from nncf.automl.utils.utils import to_numpy, to_tensor, sample_from_truncated_normal_distribution
 
-from types import SimpleNamespace
 
 criterion = nn.MSELoss()
 USE_CUDA = torch.cuda.is_available()
+FLOAT = torch.cuda.FloatTensor if USE_CUDA else torch.FloatTensor
+
+
+def to_numpy(var):
+    return var.cpu().data.numpy() if USE_CUDA else var.data.numpy()
+
+
+def to_tensor(ndarray, volatile=False, requires_grad=False, dtype=FLOAT):
+    return Variable(
+        torch.from_numpy(ndarray), volatile=volatile, requires_grad=requires_grad
+    ).type(dtype)
+
+
+def sample_from_truncated_normal_distribution(lower, upper, mu, sigma, size=1):
+    from scipy import stats
+    return stats.truncnorm.rvs((lower-mu)/sigma, (upper-mu)/sigma, loc=mu, scale=sigma, size=size)
+
 
 class Actor(nn.Module):
     def __init__(self, nb_states, nb_actions, hidden1=400, hidden2=300, init_w=3e-3):
@@ -215,7 +249,7 @@ class DDPG:
         if decay_epsilon is True:
             self.delta = self.init_delta * (self.delta_decay ** (episode - self.warmup_iter_number))
             action = sample_from_truncated_normal_distribution(
-                lower=self.LBOUND, upper=self.RBOUND, mu=action, sigma=self.delta , size=self.nb_actions)
+                lower=self.LBOUND, upper=self.RBOUND, mu=action, sigma=self.delta, size=self.nb_actions)
 
         return np.clip(action, self.LBOUND, self.RBOUND)
 
