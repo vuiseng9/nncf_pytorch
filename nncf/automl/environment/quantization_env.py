@@ -1,5 +1,5 @@
 """
- Copyright (c) 2020 Intel Corporation
+ Copyright (c) 2021 Intel Corporation
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -108,11 +108,6 @@ class QuantizationEnv:
         self.eval_loader = eval_loader
         self.eval_fn = eval_fn
         self.config = config
-
-        # TODO: Do we need to a way to specify a different device for automated search?
-        # self.config.current_gpu = self.config.gpu_id
-        # torch.cuda.set_device(config.gpu_id)         # Set default operating cuda device
-        # self.config.device = get_device(self.config) # get_device requires config.current_gpu
 
         # Extract model name for labelling
         self.model_name = self.config.get('model', None)
