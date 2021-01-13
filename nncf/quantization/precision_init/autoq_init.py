@@ -1,5 +1,5 @@
 """
- Copyright (c) 2020 Intel Corporation
+ Copyright (c) 2021 Intel Corporation
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -59,8 +59,8 @@ class AutoQPrecisionInitializer:
             self.dump_dir = Path(dump_dir) / Path("autoq_agent_dump")
             self.dump_dir.mkdir(parents=True, exist_ok=True)
 
-            self.policy_dict=OrderedDict() #key: episode
-            self.best_policy_dict=OrderedDict() #key: episode
+            self.policy_dict = OrderedDict() #key: episode
+            self.best_policy_dict = OrderedDict() #key: episode
 
             self.init_args.config['episodic_nncfcfg'] = osp.join(self.dump_dir, "episodic_nncfcfg")
             os.makedirs(self.init_args.config['episodic_nncfcfg'], exist_ok=True)
@@ -69,8 +69,8 @@ class AutoQPrecisionInitializer:
 
             # log compression config to tensorboard
             self.tb_writer.add_text('AutoQ/run_config',
-                json.dumps(self.init_args.config['compression'],
-                           indent=4, sort_keys=False).replace("\n", "\n\n"), 0)
+                                    json.dumps(self.init_args.config['compression'],
+                                               indent=4, sort_keys=False).replace("\n", "\n\n"), 0)
 
 
         start_ts = datetime.now()
@@ -208,7 +208,7 @@ class AutoQPrecisionInitializer:
     def _dump_best_episode(self, info_tuple: Tuple, bit_stats_df: pd.DataFrame, env: 'QuantizationEnv'):
         if self._dump_autoq_data:
             episode = info_tuple[0]
-            self.best_policy_dict[episode]=env.master_df['action'].astype('int')
+            self.best_policy_dict[episode] = env.master_df['action'].astype('int')
 
             pd.DataFrame(
                 self.best_policy_dict.values(), index=self.best_policy_dict.keys()).T.sort_index(
@@ -231,7 +231,7 @@ class AutoQPrecisionInitializer:
             with open(episode_cfgfile, "w") as outfile:
                 json.dump(env.config, outfile, indent=4, sort_keys=False)
 
-            self.policy_dict[episode]=env.master_df['action'].astype('int')
+            self.policy_dict[episode] = env.master_df['action'].astype('int')
             pd.DataFrame(
                 self.policy_dict.values(), index=self.policy_dict.keys()).T.sort_index(axis=1, ascending=False).to_csv(
                     osp.join(self.dump_dir, "policy_per_episode.csv"), index_label="nodestr")
@@ -290,7 +290,7 @@ class AutoQPrecisionInitializer:
         return text_string
 
 def map_precision(action: float) -> int:
-    precision_set = [2,4,8]
+    precision_set = [2, 4, 8]
     precision_set = np.array(sorted(precision_set))
     tuned_point = precision_set+3
     max_bit = max(precision_set)
