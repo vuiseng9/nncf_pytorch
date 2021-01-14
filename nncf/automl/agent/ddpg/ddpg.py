@@ -155,7 +155,7 @@ class DDPG:
 
         # noise
         self.init_delta = args.init_delta
-        self.delta_decay = args.delta_decay
+        self.delta_decay = self.update_delta_decay_factor(hparam_override['iter_number'])
         self.warmup_iter_number = args.warmup_iter_number
         self.delta = args.init_delta
 
@@ -172,6 +172,24 @@ class DDPG:
         # moving average baseline
         self.moving_average = None
         self.moving_alpha = 0.5  # based on batch, so small
+
+
+    def update_delta_decay_factor(self, num_train_episode):
+        assert num_train_episode > 0, "Number of train episode must be larger than 0"
+
+        if num_train_episode <= 1000:
+            # every hundred of episode below 1000 (100, 200 ... 1000)
+            calibrated_factor = [0.960, 0.980, 0.987, 0.992, 0.993,
+                                 0.995, 0.995, 0.996, 0.996, 0.997]
+            delta_decay = calibrated_factor[num_train_episode//100]
+
+        elif num_train_episode <= 3000:
+            delta_decay = num_train_episode*(0.999-0.997)/(3000-1000) + 0.997
+
+        else:
+            delta_decay = 0.999
+
+        return delta_decay
 
     def update_policy(self):
         # Sample batch
@@ -225,11 +243,13 @@ class DDPG:
         self.value_loss = value_loss
         self.policy_loss = policy_loss
 
+
     def eval(self):
         self.actor.eval()
         self.actor_target.eval()
         self.critic.eval()
         self.critic_target.eval()
+
 
     def cuda(self):
         self.actor.cuda()
@@ -237,13 +257,16 @@ class DDPG:
         self.critic.cuda()
         self.critic_target.cuda()
 
+
     def observe(self, r_t, s_t, a_t, done):
         if self.is_training:
             self.memory.append(s_t, a_t, r_t, done)  # save to memory
 
+
     def random_action(self):
         action = np.random.uniform(self.LBOUND, self.RBOUND, self.nb_actions)
         return action
+
 
     def select_action(self, s_t, episode, decay_epsilon=True):
         action = to_numpy(self.actor(to_tensor(np.array(s_t).reshape(1, -1)))).squeeze(0)
@@ -255,8 +278,10 @@ class DDPG:
 
         return np.clip(action, self.LBOUND, self.RBOUND)
 
+
     def reset(self, obs):
         pass
+
 
     def load_weights(self, output):
         if output is None:
@@ -270,6 +295,7 @@ class DDPG:
             torch.load('{}/critic.pkl'.format(output))
         )
 
+
     def save_model(self, output):
         torch.save(
             self.actor.state_dict(),
@@ -280,10 +306,12 @@ class DDPG:
             '{}/critic.pkl'.format(output)
         )
 
+
     def seed(self, s):
         torch.manual_seed(s)
         if USE_CUDA:
             torch.cuda.manual_seed(s)
+
 
     def soft_update(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
@@ -291,15 +319,19 @@ class DDPG:
                 target_param.data * (1.0 - self.tau) + param.data * self.tau
             )
 
+
     def hard_update(self, target, source):
         for target_param, param in zip(target.parameters(), source.parameters()):
             target_param.data.copy_(param.data)
 
+
     def get_delta(self):
         return self.delta
 
+
     def get_value_loss(self):
         return self.value_loss
+
 
     def get_policy_loss(self):
         return self.policy_loss
