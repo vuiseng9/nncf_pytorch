@@ -60,10 +60,10 @@ def _seed():
 
 
 EPISODE_NOISY_ACTION_TUPLES = [
-    (0, [0.70489922, 0.81957398]),
-    (10, [0.72625357, 0.83291126]),
-    (100, [0.88461992, 0.92977658]),
-    (1000, [0.99998639, 0.99999172]),
+    (0, [0.71018179, 0.82288581]),
+    (10, [0.72084132, 0.82954315]),
+    (100, [0.81406932, 0.88682551]),
+    (1000, [0.99795472, 0.99875519]),
 ]
 @pytest.mark.parametrize('episode_action_pair', EPISODE_NOISY_ACTION_TUPLES,
                          ids=['_'.join(['episode', str(e)]) for e, _ in EPISODE_NOISY_ACTION_TUPLES])
