@@ -180,14 +180,14 @@ class DDPG:
     def update_delta_decay_factor(self, num_train_episode):
         assert num_train_episode > 0, "Number of train episode must be larger than 0"
 
-        if num_train_episode <= 1000:
+        if num_train_episode < 1000:
             # every hundred of episode below 1000 (100, 200 ... 1000)
-            calibrated_factor = [0.960, 0.980, 0.987, 0.992, 0.993,
-                                 0.995, 0.995, 0.996, 0.996, 0.997]
+            calibrated_factor = [0.960, 0.960, 0.980, 0.987, 0.992,
+                                 0.993, 0.995, 0.995, 0.996, 0.996]
             self.delta_decay = calibrated_factor[num_train_episode//100]
 
         elif num_train_episode <= 3000:
-            self.delta_decay = num_train_episode*(0.999-0.997)/(3000-1000) + 0.997
+            self.delta_decay = (num_train_episode-999)*(0.999-0.997)/(3000-999) + 0.997
 
         else:
             self.delta_decay = 0.999
