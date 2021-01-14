@@ -117,6 +117,8 @@ class DDPG:
             for hparam, hparam_val in hparam_override.items():
                 if hparam in hyperparameters:
                     hyperparameters[hparam] = hparam_val
+            if 'iter_number' in hparam_override:
+                hyperparameters['train_episode'] = hparam_override['iter_number']
 
         args = SimpleNamespace(**hyperparameters)
 
@@ -155,7 +157,8 @@ class DDPG:
 
         # noise
         self.init_delta = args.init_delta
-        self.delta_decay = self.update_delta_decay_factor(hparam_override['iter_number'])
+        self.delta_decay = args.delta_decay
+        self.update_delta_decay_factor(args.train_episode)
         self.warmup_iter_number = args.warmup_iter_number
         self.delta = args.init_delta
 
@@ -181,15 +184,14 @@ class DDPG:
             # every hundred of episode below 1000 (100, 200 ... 1000)
             calibrated_factor = [0.960, 0.980, 0.987, 0.992, 0.993,
                                  0.995, 0.995, 0.996, 0.996, 0.997]
-            delta_decay = calibrated_factor[num_train_episode//100]
+            self.delta_decay = calibrated_factor[num_train_episode//100]
 
         elif num_train_episode <= 3000:
-            delta_decay = num_train_episode*(0.999-0.997)/(3000-1000) + 0.997
+            self.delta_decay = num_train_episode*(0.999-0.997)/(3000-1000) + 0.997
 
         else:
-            delta_decay = 0.999
+            self.delta_decay = 0.999
 
-        return delta_decay
 
     def update_policy(self):
         # Sample batch
