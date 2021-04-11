@@ -277,6 +277,15 @@ class QuantizerPropagationStateGraph(nx.DiGraph):
                 qpg_node[self.AFFECTING_PROPAGATING_QUANTIZERS_ATTR] = []
                 qpg_node[self.INSERTION_POINT_DATA_NODE_ATTR] = node[
                     InsertionPointGraph.INSERTION_POINT_DATA_NODE_ATTR]
+
+                # filter node_key and IP based on ignored_scopes in NNCF config
+                ip_data = str(node['insertion_point_data'])
+                if in_scope_list(ip_data.split()[-1], self._ignored_scopes) or \
+                    in_scope_list(node_key.split()[-1], self._ignored_scopes):
+
+                    qpg_node[self.IS_IN_IGNORED_SCOPES] = True
+                    self.ignored_node_keys.append(node_key)
+
             elif node[InsertionPointGraph.NODE_TYPE_NODE_ATTR] == InsertionPointGraphNodeType.OPERATOR:
                 qpg_node[self.ALLOWED_INPUT_QUANTIZATION_TYPES_NODE_ATTR] = set()
                 qpg_node[
@@ -291,7 +300,6 @@ class QuantizerPropagationStateGraph(nx.DiGraph):
                 qpg_node[self.OPERATOR_SCOPE] = node_ia_op_exec_context.scope_in_model
                 qpg_node[self.OPERATOR_IA_OP_EXEC_CONTEXT_NODE_ATTR] = node_ia_op_exec_context
                 node_scope = str(node_ia_op_exec_context)
-
                 if in_scope_list(node_scope, self._ignored_scopes):
                     qpg_node[self.IS_IN_IGNORED_SCOPES] = True
 
