@@ -277,6 +277,16 @@ class QuantizerPropagationStateGraph(nx.DiGraph):
                 qpg_node[self.AFFECTING_PROPAGATING_QUANTIZERS_ATTR] = []
                 qpg_node[self.INSERTION_POINT_DATA_NODE_ATTR] = node[
                     InsertionPointGraph.INSERTION_POINT_DATA_NODE_ATTR]
+                
+                # print(node['insertion_point_data'])
+                # print("\t", node_key)
+                insertion_pt = deepcopy(str(node['insertion_point_data']))
+                # print("\t\t +++", insertion_pt.split()[-1])
+
+                if in_scope_list(insertion_pt.split()[-1], self._ignored_scopes):
+                    qpg_node[self.IS_IN_IGNORED_SCOPES] = True
+                    self.ignored_node_keys.append(node_key)
+
             elif node[InsertionPointGraph.NODE_TYPE_NODE_ATTR] == InsertionPointGraphNodeType.OPERATOR:
                 qpg_node[self.ALLOWED_INPUT_QUANTIZATION_TYPES_NODE_ATTR] = set()
                 qpg_node[

@@ -331,15 +331,16 @@ class AutoQPrecisionInitializer(BasePrecisionInitializer):
             current_strategy_string = self._generate_tensorboard_logging_string(
                 bit_stats_df, env.master_df, info_tuple, env.skip_constraint)
 
-            list_of_dump_dict = []
-            for i, _ in enumerate(env.groups_of_adjacent_quantizers):
-                list_of_dump_dict.append(
-                    env.master_df.loc[
-                        env.adjq_groupwise_df_lut_keys[i], ["action", "action_aligned"]
-                    ].to_dict()
-                )
-            current_strategy_string += "\t\n\t# Precision(s) per Group of Adjacent Quantizers\n\t" \
-                                        + json.dumps(list_of_dump_dict, indent=4).replace("\n","\n\t") + "\n\n"
+            if env.performant_bw is True:
+                list_of_dump_dict = []
+                for i, _ in enumerate(env.groups_of_adjacent_quantizers):
+                    list_of_dump_dict.append(
+                        env.master_df.loc[
+                            env.adjq_groupwise_df_lut_keys[i], ["action", "action_aligned"]
+                        ].to_dict()
+                    )
+                current_strategy_string += "\t\n\t# Precision(s) per Group of Adjacent Quantizers\n\t" \
+                                            + json.dumps(list_of_dump_dict, indent=4).replace("\n","\n\t") + "\n\n"
 
             self.tb_writer.add_text('AutoQ/current_policy', current_strategy_string, episode)
 

@@ -151,7 +151,8 @@ class QuantizationEnv:
         self.skip_constraint = params.skip_constraint
 
         # Bool to enable bw alignment of adj. Q group to lower precision
-        self.performant_bw = params.performant_bw
+        # self.performant_bw = params.performant_bw
+        self.performant_bw = False
 
         # Bool to enable fine-tuning in each episode. Placeholder for now
         self.finetune = False
@@ -203,6 +204,13 @@ class QuantizationEnv:
 
         # Create master dataframe to keep track of quantizable layers and their attributes
         self.master_df, self.state_list = self._get_state_space(self.qctrl, self.qmodel, self.quantizer_table)
+
+        self.master_df.drop('state_module', axis=1).to_csv(
+            osp.join(params.log_dir, "bert_quantizable_state_table.csv"), index_label="nodestr")
+        self.qmodel.get_graph().visualize_graph(osp.join(params.log_dir, self.model_name+".nncfgraph.dot"))
+        print(json.dumps(list(map(str, list(self.master_df.state_scope[self.master_df.gid.isnull()].values))), indent=True))
+        print(json.dumps(list(map(str, list(self.master_df.state_scope[self.master_df.state_module.isnull()].values))), indent=True))
+        
         if self.master_df.isnull().values.any():
             raise ValueError("Q.Env Master Dataframe has null value(s)")
 
@@ -231,10 +239,10 @@ class QuantizationEnv:
                                      self.max_model_size / self.orig_model_size))
 
         # Compression Ratio Calculation (BOP relative to 8-bit)
-        self.compression_ratio_calculator = CompressionRatioCalculator(
-            self.qmodel.get_flops_per_module(),
-            self.qctrl.get_quantizer_setup_for_current_state(),
-            self.qctrl.groups_of_adjacent_quantizers.weight_qp_id_per_activation_qp_id)
+        # self.compression_ratio_calculator = CompressionRatioCalculator(
+        #     self.qmodel.get_flops_per_module(),
+        #     self.qctrl.get_quantizer_setup_for_current_state(),
+        #     self.qctrl.groups_of_adjacent_quantizers.weight_qp_id_per_activation_qp_id)
 
         # Evaluate and store metric score of pretrained model
         self._evaluate_pretrained_model()
@@ -379,6 +387,16 @@ class QuantizationEnv:
                 feature['ifm_size'] = np.prod(m.input_shape_[-1]) # feature nodes
                 feature['prev_action'] = 0.0 # placeholder
 
+            elif isinstance(m, nn.Embedding):
+                feature['conv_dw'] = 0.0
+                feature['cin'] = m.num_embeddings
+                feature['cout'] = m.embedding_dim
+                feature['stride'] = 0.0
+                feature['kernel'] = 1.0
+                feature['param'] = np.prod(m.weight.size())
+                feature['ifm_size'] = np.prod(m.input_shape_[-1]) # feature nodes
+                feature['prev_action'] = 0.0 # placeholder
+
             else:
                 raise NotImplementedError("State embedding extraction of {}".format(m.__class__.__name__))
 
@@ -395,8 +413,8 @@ class QuantizationEnv:
             feature['param'] = 0.0
             feature['prev_action'] = 0.0
 
-            if len(input_shape) != 4 and len(input_shape) != 2:
-                raise NotImplementedError("A design is required to cater this scenario. Pls. report to maintainer")
+            # if len(input_shape) != 4 and len(input_shape) != 2:
+            #     raise NotImplementedError("A design is required to cater this scenario. Pls. report to maintainer")
 
         elif isinstance(qid, InputQuantizerId):
             raise NotImplementedError("InputQuantizerId is supported, quantizer of nncf model input "
@@ -580,8 +598,9 @@ class QuantizationEnv:
         current_model_size = self.model_size_calculator(self._get_quantizer_bitwidth())
         current_model_ratio = self.model_size_calculator.get_model_size_ratio(self._get_quantizer_bitwidth())
 
-        current_model_bop_ratio = self.compression_ratio_calculator.run_for_quantizer_setup(
-            self.qctrl.get_quantizer_setup_for_current_state())
+        # current_model_bop_ratio = self.compression_ratio_calculator.run_for_quantizer_setup(
+        #     self.qctrl.get_quantizer_setup_for_current_state())
+        current_model_bop_ratio = 0.0
 
         reward = self.reward(quantized_score, current_model_ratio)
 
