@@ -541,6 +541,17 @@ def main_worker(current_gpu, config):
             "\"{0}\" is not a valid choice for execution mode.".format(
                 config.mode))
 
+    from nncf.automl.utils import AutoQ_Summarizer
+    autoq_summ = AutoQ_Summarizer(compression_ctrl, config)
+    if autoq_summ.autoq_bool is True and is_main_process():
+        autoq_summ.write_onnx(
+            osp.join(config.log_dir, '{}.{}.autoq.onnx'.format(config.model, config.mode))
+        )
+
+        logger.info(autoq_summ.bw_dist())
+        logger.info("Target size ratio: {:.3f}".format(autoq_summ.autoq_cfg['compression_ratio']))
+        logger.info("Final Model size ratio: {:.3f}".format(autoq_summ.get_model_size_ratio()))
+
 
 def main(argv):
     parser = get_arguments_parser()
