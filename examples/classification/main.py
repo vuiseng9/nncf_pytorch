@@ -96,7 +96,9 @@ def main(argv):
         write_metrics(0, config.metrics_dump)
 
     if not is_staged_quantization(config):
-        start_worker(main_worker, config)
+        retval = start_worker(main_worker, config)
+        if config.restful is True:
+            return retval
     else:
         from examples.classification.staged_quantization_worker import staged_quantization_main_worker
         start_worker(staged_quantization_main_worker, config)
@@ -158,6 +160,12 @@ def main_worker(current_gpu, config: SampleConfig):
 
     resuming_model_sd, resuming_checkpoint = load_resuming_checkpoint(resuming_checkpoint_path)
     compression_ctrl, model = create_compressed_model(model, nncf_config, resuming_state_dict=resuming_model_sd)
+
+    if config.restful is True:
+        def eval_fn(model, eval_loader):
+            top1, top5 = validate(eval_loader, model, criterion, config)
+            return {'top1': top1, 'top5': top5}
+        return compression_ctrl, model, nncf_config, eval_fn, train_loader, val_loader
 
     if config.to_onnx:
         compression_ctrl.export_model(config.to_onnx)
