@@ -1,4 +1,5 @@
 import os,sys
+from typing import Protocol
 from flask import Flask, g
 from flask import request
 import json, random
@@ -10,6 +11,7 @@ from multiprocessing.sharedctypes import Value
 lock = Semaphore(1)
 mutex= Lock()
 
+from nncf.pruning.filter_pruning.algo import FilterPruningController
 from examples.classification.main import main as imgnet
 
 from copy import deepcopy
@@ -72,19 +74,44 @@ def release_lock(calling_method):
 class PruneEnv:
     def __init__(self, 
         pruning_controller, pruned_model, nncf_cfg, evaluator, train_loader, val_loader):
-        self.pruning_controller = pruning_controller
-        self.pruned_model = pruned_model
-        self.nncf_cfg = nncf_cfg
-        self.evaluator = evaluator
-        self.train_loader = train_loader
-        self.val_loader = val_loader
+        if isinstance(pruning_controller, FilterPruningController):
+            self.pruning_controller = pruning_controller
+            self.pruned_model = pruned_model
+            self.nncf_cfg = nncf_cfg
+            self.evaluator = evaluator
+            self.train_loader = train_loader
+            self.val_loader = val_loader
+        else:
+            raise ValueError("PruneEnv requires a filter-prune wrapped controller and model")
 
-    def evaluate_valset(self):
+    @property
+    def original_flops(self):
+        return int(self.pruning_controller.full_flops)
+    
+    @property
+    def remaining_flops(self):
+        return int(self.pruning_controller.current_flops)
+    
+    @property
+    def flop_ratio(self):
+        return self.remaining_flops/self.original_flops
+
+    @property
+    def effective_pruning_rate(self):
+        return self.pruning_controller._calculate_global_weight_pruning_rate()
+
+    @property
+    def groupwise_pruning_rate(self):
+        return self.pruning_controller.current_groupwise_pruning_rate
+
+    @property
+    def layerwise_stats(self):
+        return self.pruning_controller.get_stats_for_pruned_modules()
+
+    def evaluate_valset(self, pruning_rate_cfg):
+        self.pruning_controller.set_pruning_rate(pruning_rate_cfg)
         return self.evaluator(self.pruned_model, self.val_loader)
-
-    def set_prune_action(self, prune_action):
-        self.pruning_controller.set_pruning_rate(prune_action)
-
+        
 def create_app() -> Flask:
     global concurrent_requests_value
     global max_thread_time
@@ -118,6 +145,10 @@ def create_app() -> Flask:
         # =================
         try:
             content = request.get_json()
+            if not isinstance(content['groupwise_pruning_rate'], dict):
+                raise ValueError("groupwise_pruning_rate is not a dictionary")
+            pruning_rate_cfg = {int(gid): pr for gid, pr in content['groupwise_pruning_rate'].items()}
+            # TODO: how to error out properly
         except:
             prRed("Exception in parsing http request")
             return {'rc': -3, 'msg': 'Exception in parsing http request'}
@@ -131,11 +162,21 @@ def create_app() -> Flask:
         
         if acquire_lock("evaluate"):
             try:
-                prRed("Evaluating: {}".format(content['prune_ratio']))
-                env.set_prune_action(content['prune_ratio'])
-                retval = env.evaluate_valset()
+                prRed("Evaluating: {}".format(pruning_rate_cfg))
+                retval = env.evaluate_valset(pruning_rate_cfg)
                 end_time = time.time()
-                jsonresponse= dict({'rc': 0, 'msg': 'Prune and inference completed', 'task_metric': retval})
+
+                jsonresponse= dict({
+                    'rc': 0, 'msg': 'Prune and inference completed', 
+                    'task_metric': retval,
+                    'original_flops': env.original_flops,
+                    'remaining_flops': env.remaining_flops,
+                    'flop_ratio': env.flop_ratio,
+                    'size_ratio': 1-env.effective_pruning_rate, # do note that only conv layers are considered
+                    'effective_pruning_rate': env.effective_pruning_rate,
+                    'groupwise_pruning_rate': env.groupwise_pruning_rate,
+                    'layerwise_stats': env.layerwise_stats
+                    })
                 jsonresponse['processing_time'] = str(end_time - start_time)
             finally:
                 gc.collect()
