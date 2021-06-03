@@ -95,6 +95,11 @@ def create_app() -> Flask:
             return {'method':'ready_state', 'rc': 0, 'msg':"Environment {} initialized".format(os.environ['workload']), 'config':os.environ['config']}
         return {'method': 'ready_state', 'rc': 1, 'msg': "Environment {} not yet initialzed".format(os.environ['workload']), 'config':os.environ['config']}
 
+    @app.route('/model_graph', methods=['POST'])
+    def model_graph():
+        #TODO send edge lookup
+        pass
+        
     @app.route('/evaluate', methods=['POST'])
     def evaluate():
         #Code snippet for debugging purposes only
