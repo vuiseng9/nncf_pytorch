@@ -61,9 +61,9 @@ class PruneEnv:
         for n in nx_digraph.nodes:
             node_type[n] = g.get_nx_node_by_key(n)['ia_op_exec_context'].operator_name
 
-        edge_connectivity = defaultdict(set) # key: src_node, val: set(dst_nodes)
+        edge_connectivity = defaultdict(list) # key: src_node, val: set(dst_nodes)
         for e in nx_digraph.edges:
-            edge_connectivity[e[0]].add(e[1])
+            edge_connectivity[e[0]].append(e[1])
 
         return node_type, edge_connectivity
 

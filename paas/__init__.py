@@ -1,7 +1,7 @@
 import os,sys
 from typing import Protocol
 from flask import Flask, g
-from flask import request
+from flask import request, send_file, abort
 import json, random
 import numpy as np
 import gc
@@ -72,6 +72,7 @@ def release_lock(calling_method):
     return  True
         
 def create_app() -> Flask:
+        
     global concurrent_requests_value
     global max_thread_time
     bEnvReady = False
@@ -85,21 +86,83 @@ def create_app() -> Flask:
     max_thread_time = int(5*(time.time()-t1))
     prRed("max_thread_time="+str(max_thread_time)+" sec.")
     release_lock("WorkloadInit")
-    
+
     bEnvReady = True
     print("{} Pruning Service initialized".format(os.environ['workload']), flush=True)
 
     @app.route('/ready_state')
     def readystate():
-        if bEnvReady:
+        if bEnvReady is True:
             return {'method':'ready_state', 'rc': 0, 'msg':"Environment {} initialized".format(os.environ['workload']), 'config':os.environ['config']}
         return {'method': 'ready_state', 'rc': 1, 'msg': "Environment {} not yet initialzed".format(os.environ['workload']), 'config':os.environ['config']}
 
-    @app.route('/model_graph', methods=['POST'])
-    def model_graph():
-        #TODO send edge lookup
-        pass
-        
+    @app.route('/get_model_graph_viz')
+    def get_model_graph_viz():
+        graph_imgpth = os.path.join(env.nncf_cfg['log_dir'],'prune_env.png')
+        try:
+            return send_file(graph_imgpth, mimetype='image/png')
+        except FileNotFoundError:
+            if bEnvReady is True:
+                return {'method':'get_model_graph_viz', 'msg':"Env ready, model graph image not found"}
+            return {'method': 'get_model_graph_viz', 'msg': "Env not ready, model graph image not found"}
+
+    @app.route('/get_node2optype_map')
+    def get_node2optype_map():
+        if acquire_lock("get_node2optype_map"):
+            try:
+                prRed("Sending dictionary of nodetype per nodes...")
+                jsonresponse= env.node_type_lut
+            finally:
+                gc.collect()
+                release_lock("get_node2optype_map")
+            return jsonresponse
+        else:
+            jsonresponse = {'rc': -1, 'msg': 'Server busy'}
+            return jsonresponse
+    
+    @app.route('/get_connectivity_map')
+    def get_connectivity_map():
+        if acquire_lock("get_node_connectivity_map"):
+            try:
+                prRed("Sending connectivity per source nodes...")
+                jsonresponse= env.connectivity_lut
+            finally:
+                gc.collect()
+                release_lock("get_connectivity_map")
+            return jsonresponse
+        else:
+            jsonresponse = {'rc': -1, 'msg': 'Server busy'}
+            return jsonresponse
+
+    @app.route('/get_prunable_attr')
+    def get_prunable_attr():
+        if acquire_lock("get_prunable_attr"):
+            try:
+                prRed("Sending attributes of prunable nodes...")
+                jsonresponse= env.df.to_dict()
+            finally:
+                gc.collect()
+                release_lock("get_prunable_attr")
+            return jsonresponse
+        else:
+            jsonresponse = {'rc': -1, 'msg': 'Server busy'}
+            return jsonresponse
+
+    @app.route('/sample_eval_req')
+    def sample_eval_req():
+        if acquire_lock("sample_eval_req"):
+            try:
+                prRed("Sending attributes of prunable nodes...")
+                jsonresponse= env.groupwise_pruning_rate
+            finally:
+                gc.collect()
+                release_lock("sample_eval_req")
+            return jsonresponse
+        else:
+            jsonresponse = {'rc': -1, 'msg': 'Server busy'}
+            return jsonresponse
+
+
     @app.route('/evaluate', methods=['POST'])
     def evaluate():
         #Code snippet for debugging purposes only
@@ -109,10 +172,7 @@ def create_app() -> Flask:
         # =================
         try:
             content = request.get_json()
-            if not isinstance(content['groupwise_pruning_rate'], dict):
-                raise ValueError("groupwise_pruning_rate is not a dictionary")
-            pruning_rate_cfg = {int(gid): pr for gid, pr in content['groupwise_pruning_rate'].items()}
-            # TODO: how to error out properly
+            pruning_rate_cfg = {int(gid): pr for gid, pr in content.items()}
         except:
             prRed("Exception in parsing http request")
             return {'rc': -3, 'msg': 'Exception in parsing http request'}
