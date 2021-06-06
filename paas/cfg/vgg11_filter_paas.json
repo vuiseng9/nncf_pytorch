@@ -1,0 +1,22 @@
+{
+    "restful": true,
+    "model": "vgg11",
+    "pretrained": true,
+    "batch_size" : 512,
+    "epochs": 100,
+    "input_info": {
+      "sample_size": [1, 3, 224, 224]
+    },
+   "compression": [
+       {
+           "algorithm": "filter_pruning",
+           "pruning_init": 0.0,
+            "params": {
+                "weight_importance": "L1",
+                "prune_downsample_convs" : true,
+                "prune_first_conv": true,
+                "prune_last_conv": true,
+            }
+        }
+   ]
+}
