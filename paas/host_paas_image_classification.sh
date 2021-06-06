@@ -3,7 +3,7 @@
 #!/usr/bin/env bash
 
 export workload=imgnet
-export config=/workspace/nncf/paas/cfg/vgg11_pruning_magnitude.json
+export config=/workspace/nncf/paas/cfg/vgg11_filter_paas.json
 
 # Pls revise path to dataset
 export data=/data/dataset/imagenet/ilsvrc2012/torchvision
