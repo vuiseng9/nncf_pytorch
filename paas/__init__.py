@@ -96,6 +96,30 @@ def create_app() -> Flask:
             return {'method':'ready_state', 'rc': 0, 'msg':"Environment {} initialized".format(os.environ['workload']), 'config':os.environ['config']}
         return {'method': 'ready_state', 'rc': 1, 'msg': "Environment {} not yet initialzed".format(os.environ['workload']), 'config':os.environ['config']}
 
+    @app.route('/ready')
+    def ready():
+
+        global concurrent_requests_value
+        global last_lock_time
+        global max_thread_time
+        from flask import jsonify
+        bOK = True
+        if bEnvReady:
+            if concurrent_requests_value>0:
+                bOK = False
+        else:
+            prRed("Service yet not initialized")
+            bOK = False
+        if bOK:
+            return jsonify(success=True, concurrent_requests_value=concurrent_requests_value, lock_time=time.time()-last_lock_time), 200
+        else:
+            if time.time() - last_lock_time > 400:
+                prRed("1 Service blocked for {} min.".format((time.time() - last_lock_time) / 60.))
+            if (time.time() - last_lock_time) > max_thread_time:
+                while (concurrent_requests_value > 0):
+                    release_lock("Force release lock")
+            return jsonify(success=False, concurrent_requests_value=concurrent_requests_value, lock_time=time.time()-last_lock_time), 300
+
     @app.route('/get_model_graph_viz')
     def get_model_graph_viz():
         graph_imgpth = os.path.join(env.nncf_cfg['log_dir'],'prune_env.png')
