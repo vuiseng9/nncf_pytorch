@@ -131,6 +131,8 @@ class PruneEnv:
 
             attrs_node = {}
             label = str(node[PTNNCFGraph.ID_NODE_ATTR]) + ' ' + str(ia_op_exec_context)
+            if 'conv2d' in label.lower():
+                label = "*prunable*\n" + label
             tokens=label.split("/")
             new_tokens=[]
             for i, token in enumerate(tokens):
@@ -139,7 +141,9 @@ class PruneEnv:
                 new_tokens.append(token)
             attrs_node['label'] = '/'.join(new_tokens)
             if sum(self.df.node_name == node_name) == 1:
-                attrs_node['color'] = palette[self.df.cluster_id[self.df.node_name == node_name].values[0] % len(palette)]
+                cluster_id = self.df.cluster_id[self.df.node_name == node_name].values[0]
+                attrs_node['label'] += "\n(cluster {})".format(cluster_id)
+                attrs_node['color'] = palette[cluster_id % len(palette)]
                 attrs_node['style'] = 'filled'
 
             out_graph.add_node(node_name, **attrs_node)
