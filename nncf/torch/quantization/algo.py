@@ -448,7 +448,7 @@ class QuantizationBuilder(PTCompressionAlgorithmBuilder):
 
         # can be False to disable setting of adjust padding operations on precision init, because it may add unnecessary
         # noise on model evaluation (e.g. in AutoQ)
-        self._should_setup_adjust_pad_ops = True
+        self._should_setup_adjust_pad_ops = False
 
         hw_config_type = self.config.get("hw_config_type")
         if hw_config_type is not None:

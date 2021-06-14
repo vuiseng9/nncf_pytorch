@@ -212,6 +212,17 @@ def main_worker(current_gpu, config):
 
     train(net, compression_ctrl, train_data_loader, test_data_loader, criterion, optimizer, config, lr_scheduler)
 
+    from nncf.torch.automl.utils import AutoQ_Summarizer
+    autoq_summ = AutoQ_Summarizer(compression_ctrl, config)
+    if autoq_summ.autoq_bool is True and is_main_process():
+        autoq_summ.write_onnx(
+            osp.join(config.log_dir, '{}.{}.autoq.onnx'.format(config.model, config.mode))
+        )
+
+        logger.info(autoq_summ.bw_dist())
+        logger.info("Target size ratio: {:.3f}".format(autoq_summ.autoq_cfg['compression_ratio']))
+        logger.info("Final Model size ratio: {:.3f}".format(autoq_summ.get_model_size_ratio()))
+
 
 def create_dataloaders(config):
     logger.info('Loading Dataset...')
