@@ -8,6 +8,9 @@ import gc
 import time
 from multiprocessing import Lock, Semaphore
 from multiprocessing.sharedctypes import Value
+from sklearn.preprocessing import OneHotEncoder
+import pandas as pd
+from natsort import natsorted
 lock = Semaphore(1)
 mutex= Lock()
 
@@ -119,6 +122,75 @@ def create_app() -> Flask:
                 while (concurrent_requests_value > 0):
                     release_lock("Force release lock")
             return jsonify(success=False, concurrent_requests_value=concurrent_requests_value, lock_time=time.time()-last_lock_time), 300
+
+    @app.route('/layer_graph_data')
+    def layer_graph():
+        if acquire_lock("creating_layer_wise_graph"):
+            try:
+                jsonresponse = dict()
+                jsonresponse['edges'] = env.connectivity_lut
+
+                prunable_attr = env.df.to_dict()
+                prunable_df = pd.DataFrame.from_dict(prunable_attr)
+                node2cluster_id = prunable_df[['node_name', 'cluster_id']].set_index('node_name').to_dict()
+
+                node_type = env.node_type_lut
+
+                optype_encoder = OneHotEncoder()
+                cluster_id_encoder = OneHotEncoder()
+
+                one_hot_encoded_cluster_id = cluster_id_encoder.fit_transform(
+                    np.array(list(node2cluster_id['cluster_id'].values())).reshape(-1, 1)).toarray()
+
+                one_hot_encoded_cluster_id_map = dict(
+                    zip(node2cluster_id['cluster_id'].keys(), one_hot_encoded_cluster_id))
+
+                cluster_id_df = pd.Series(data=one_hot_encoded_cluster_id_map.values(),
+                                          index=one_hot_encoded_cluster_id_map.keys(), name="cluster_id").to_frame()
+
+                one_hot_encoded_optype = optype_encoder.fit_transform(
+                    np.array(list(node_type.values())).reshape(-1, 1)).toarray()
+
+                one_hot_encoded_optype_map = dict(zip(node_type.keys(), one_hot_encoded_optype))
+
+                optype_df = pd.Series(data=one_hot_encoded_optype_map.values(), index=one_hot_encoded_optype_map.keys(),
+                                      name="optype").to_frame()
+
+                optype_df = optype_df.reindex(natsorted(optype_df.index))
+
+                prunable_features = prunable_df.drop(columns=['module_scope', 'cluster_id']).set_index('node_name')
+
+                features_per_node = pd.concat([optype_df, prunable_features], axis=1).fillna(0)
+
+                features_per_node = pd.concat([features_per_node, cluster_id_df], axis=1)
+
+                features_per_node['cluster_id'] = \
+                    [np.zeros_like(one_hot_encoded_cluster_id[0]) if isinstance(val, float) else val for val in
+                     features_per_node['cluster_id'].to_list()]
+
+                for ii, item in enumerate(features_per_node['cluster_id']):
+                    features_per_node['cluster_id'][ii] = features_per_node['cluster_id'][ii].tolist()
+                    features_per_node['optype'][ii] = features_per_node['optype'][ii].tolist()
+
+
+                feature_dict = features_per_node.to_dict()
+
+                jsonresponse['node_features'] = feature_dict
+                
+                jsonresponse['action_space'] = {'continuous': 1}
+
+                jsonresponse['rc'] = 1
+
+                prRed("Sending connectivity and nodes features...")
+
+            finally:
+                gc.collect()
+                release_lock("creating_layer_wise_graph")
+            return jsonresponse
+        else:
+            jsonresponse = {'rc': -1, 'msg': 'Server busy'}
+            return jsonresponse
+
 
     @app.route('/get_model_graph_viz')
     def get_model_graph_viz():
