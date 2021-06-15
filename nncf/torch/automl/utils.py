@@ -7,10 +7,11 @@ class AutoQ_Summarizer:
         self.autoq_bool = self.get_autoq_config(nncf_config)
     
     def bw_dist(self):
-        qstat_collector = self._compression_ctrl.non_stable_metric_collectors[0]
-        qdf=pd.DataFrame.from_dict(qstat_collector.stat)[[qstat_collector.WEIGHTS_RATIO_STR, qstat_collector.ACTIVATIONS_RATIO_STR]].transpose()
-        per_bw_df = qdf[sorted(list(qstat_collector.params_bits_stat), reverse=True)]
-        return per_bw_df
+        stats = self._compression_ctrl.statistics()
+        qdf = pd.DataFrame.from_dict(
+            [stats.quantization.bitwidth_distribution_statistics.num_wq_per_bitwidth, 
+             stats.quantization.bitwidth_distribution_statistics.num_aq_per_bitwidth]).fillna(0).astype(int).rename(index={0:'WQ',1:'AQ'})
+        return qdf
 
     def get_model_size_ratio(self):
         total_nparam = 0
