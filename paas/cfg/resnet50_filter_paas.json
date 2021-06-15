@@ -1,8 +1,8 @@
 {
     "restful": true,
-    "model": "vgg11",
+    "model": "resnet50",
     "pretrained": true,
-    "batch_size" : 128,
+    "batch_size" : 512,
     "epochs": 100,
     "input_info": {
       "sample_size": [1, 3, 224, 224]

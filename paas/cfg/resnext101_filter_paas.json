@@ -16,6 +16,7 @@
                 "prune_downsample_convs" : true,
                 "prune_first_conv": true,
                 "prune_last_conv": true,
+                "prune_batch_norms": true,
             }
         }
    ]

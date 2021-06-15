@@ -286,8 +286,10 @@ def create_app() -> Flask:
                 retval = env.evaluate_valset(pruning_rate_cfg)
                 end_time = time.time()
 
-                jsonresponse= dict({
-                    'rc': 0, 'msg': 'Prune and inference completed', 
+                jsonresponse = dict()
+                jsonresponse['rc'] = 0
+                jsonresponse['msg'] = 'Prune and inference completed'
+                jsonresponse['meta_data'] = {
                     'task_metric': retval,
                     'original_flops': env.original_flops,
                     'remaining_flops': env.remaining_flops,
@@ -295,8 +297,9 @@ def create_app() -> Flask:
                     'size_ratio': 1-env.effective_pruning_rate, # do note that only conv layers are considered
                     'effective_pruning_rate': env.effective_pruning_rate,
                     'groupwise_pruning_rate': env.groupwise_pruning_rate,
-                    'layerwise_stats': env.layerwise_stats
-                    })
+                    'layerwise_stats': env.layerwise_stats}
+                
+                jsonresponse['cached_measurement'] = False
                 jsonresponse['processing_time'] = str(end_time - start_time)
             finally:
                 gc.collect()
