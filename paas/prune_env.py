@@ -10,7 +10,7 @@ from networkx.drawing.nx_agraph import to_agraph
 from nncf.common.utils.logger import logger as nncf_logger
 from nncf.pruning.filter_pruning.algo import FilterPruningController
 from nncf.graph.graph import PTNNCFGraph
-
+from copy import deepcopy
 from collections import defaultdict
 class PruneEnv:
     def __init__(self, 
@@ -24,6 +24,7 @@ class PruneEnv:
             self.val_loader = val_loader
         else:
             raise ValueError("PruneEnv requires a filter-prune wrapped controller and model")
+        self.pruned_model_init_sd = deepcopy(self.pruned_model.state_dict())
         self.df = self.extract_prunable_layer_features()
         self.node_type_lut, self.connectivity_lut = self.extract_graph_connectivity()
         self.print_groupwise_nodes()
@@ -70,6 +71,11 @@ class PruneEnv:
     def evaluate_valset(self, pruning_rate_cfg):
         self.pruning_controller.set_pruning_rate(pruning_rate_cfg)
         return self.evaluator(self.pruned_model, self.val_loader)
+
+    def restore_dense_model(self):
+        # note that statistics are only extracted upon call;
+        # hence restoration of dense state dict should be after any stats collection 
+        self.pruned_model.load_state_dict(self.pruned_model_init_sd)
 
     def print_groupwise_nodes(self):
         for cluster in self.pruning_controller.pruned_module_groups_info.get_all_clusters():

@@ -298,7 +298,10 @@ def create_app() -> Flask:
                     'effective_pruning_rate': env.effective_pruning_rate,
                     'groupwise_pruning_rate': env.groupwise_pruning_rate,
                     'layerwise_stats': env.layerwise_stats}
-                
+
+                # restoration of dense state dict must be after stats collection
+                # as statistics are only extracted upon collection
+                env.restore_dense_model()
                 jsonresponse['cached_measurement'] = False
                 jsonresponse['processing_time'] = str(end_time - start_time)
             finally:
