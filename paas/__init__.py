@@ -297,6 +297,7 @@ def create_app() -> Flask:
                     'size_ratio': 1-env.effective_pruning_rate, # do note that only conv layers are considered
                     'effective_pruning_rate': env.effective_pruning_rate,
                     'groupwise_pruning_rate': env.groupwise_pruning_rate,
+                    'input_pruning_rate': pruning_rate_cfg,
                     'layerwise_stats': env.layerwise_stats}
 
                 # restoration of dense state dict must be after stats collection
