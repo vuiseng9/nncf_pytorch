@@ -11,6 +11,7 @@ from multiprocessing.sharedctypes import Value
 from sklearn.preprocessing import OneHotEncoder
 import pandas as pd
 from natsort import natsorted
+import hashlib
 lock = Semaphore(1)
 mutex= Lock()
 
@@ -268,7 +269,7 @@ def create_app() -> Flask:
         # =================
         try:
             content = request.get_json()
-            pruning_rate_cfg = {int(gid): pr for gid, pr in content.items()}
+            pruning_rate_cfg = {int(gid): round(pr, 4) for gid, pr in content.items()}
         except:
             prRed("Exception in parsing http request")
             return {'rc': -3, 'msg': 'Exception in parsing http request'}
@@ -280,6 +281,21 @@ def create_app() -> Flask:
             if content['debug']:
                 return dummy_response()
         
+        if env.nncf_cfg.get('eval_cache', True) is True:
+            cache_dir = os.path.join(env.nncf_cfg['log_dir'], 'paas_eval_cache')
+            os.makedirs(cache_dir, exist_ok=True)
+            
+            input_cfg_hash = hashlib.md5(json.dumps(pruning_rate_cfg).encode('utf-8')).hexdigest()
+            input_cfg_hash_filename = os.path.join(cache_dir, input_cfg_hash+".json")
+            
+            if os.path.exists(input_cfg_hash_filename):
+                prRed("Recycling: {}".format(pruning_rate_cfg))
+                prCyan("Recycling results in "+input_cfg_hash_filename)
+                with open(input_cfg_hash_filename, 'r') as f:
+                    jsonresponse = json.load(f)
+                    jsonresponse['cached_eval'] = True
+                return jsonresponse
+
         if acquire_lock("evaluate"):
             try:
                 prRed("Evaluating: {}".format(pruning_rate_cfg))
@@ -303,11 +319,23 @@ def create_app() -> Flask:
                 # restoration of dense state dict must be after stats collection
                 # as statistics are only extracted upon collection
                 env.restore_dense_model()
-                jsonresponse['cached_measurement'] = False
                 jsonresponse['processing_time'] = str(end_time - start_time)
+
+                if env.nncf_cfg.get('eval_cache', True) is True:                  
+                    evaluated_cfg_hash = hashlib.md5(json.dumps(env.groupwise_pruning_rate).encode('utf-8')).hexdigest()
+                    evaluated_cfg_hash_filename = os.path.join(cache_dir, evaluated_cfg_hash+".json")
+
+                    prCyan("Writing input cfg to " + input_cfg_hash_filename)
+                    with open(input_cfg_hash_filename, 'w') as f:
+                        json.dump(jsonresponse, f, indent=4)
+                    prCyan("Writing evaluated cfg to " + evaluated_cfg_hash_filename)
+                    with open(evaluated_cfg_hash_filename, 'w') as f:
+                        json.dump(jsonresponse, f, indent=4)
+
             finally:
                 gc.collect()
                 release_lock("evaluate")
+                jsonresponse['cached_eval'] = False
             return jsonresponse
         else:
             jsonresponse = {'rc': -1, 'msg': 'Server busy'}
