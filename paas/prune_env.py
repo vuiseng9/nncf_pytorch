@@ -8,8 +8,8 @@ import numpy as np
 import networkx as nx
 from networkx.drawing.nx_agraph import to_agraph
 from nncf.common.utils.logger import logger as nncf_logger
-from nncf.pruning.filter_pruning.algo import FilterPruningController
-from nncf.graph.graph import PTNNCFGraph
+from nncf.torch.pruning.filter_pruning.algo import FilterPruningController
+from nncf.torch.graph.graph import PTNNCFGraph
 from copy import deepcopy
 from collections import defaultdict
 class PruneEnv:
@@ -56,11 +56,11 @@ class PruneEnv:
 
     def extract_graph_connectivity(self):
         g = self.pruned_model.get_graph()
-        nx_digraph = g._get_graph_for_structure_analysis()
+        nx_digraph = g.get_graph_for_structure_analysis()
 
         node_type = dict()
         for n in nx_digraph.nodes:
-            node_type[n] = g.get_nx_node_by_key(n)['ia_op_exec_context'].operator_name
+            node_type[n] = g.get_node_by_key(n).node_type
 
         edge_connectivity = defaultdict(list) # key: src_node, val: set(dst_nodes)
         for e in nx_digraph.edges:
@@ -79,7 +79,7 @@ class PruneEnv:
 
     def print_groupwise_nodes(self):
         for cluster in self.pruning_controller.pruned_module_groups_info.get_all_clusters():
-            for node in cluster.nodes:
+            for node in cluster.elements:
                 print("Group {:2d} | {:3d} | {}".format(cluster.id, node.nncf_node_id, node.module_scope.__str__()))
             print("----------------------------------------------------------------------------------------------")
 
@@ -116,12 +116,14 @@ class PruneEnv:
         g = self.pruned_model.get_graph()
         layer_dictlist = []
         for cluster in self.pruning_controller.pruned_module_groups_info.get_all_clusters():
-            for node in cluster.nodes:
+            for node in cluster.elements:
                 node_features=get_layer_attr(node.module)
                 node_features['cluster_id'] = cluster.id
                 node_features['node_id'] = node.nncf_node_id
                 node_features['module_scope'] = node.module_scope.__str__()
-                node_features['node_name'] = g.get_nncf_node_by_id(node.nncf_node_id).node_name
+                nncf_node = g.get_node_by_id(node.nncf_node_id)
+                node_features['node_name'] = ' '.join([str(nncf_node.node_id), nncf_node.node_name])
+                
                 layer_dictlist.append(node_features)
         
         return pd.DataFrame.from_dict(layer_dictlist)
@@ -133,10 +135,8 @@ class PruneEnv:
 
         out_graph = nx.DiGraph()
         for node_name, node in g._nx_graph.nodes.items():
-            ia_op_exec_context = node[PTNNCFGraph.IA_OP_EXEC_CONTEXT_NODE_ATTR]
-
             attrs_node = {}
-            label = str(node[PTNNCFGraph.ID_NODE_ATTR]) + ' ' + str(ia_op_exec_context)
+            label = str(node[PTNNCFGraph.ID_NODE_ATTR]) + ' ' + str(node[PTNNCFGraph.NODE_NAME_ATTR])
             if 'conv2d' in label.lower():
                 label = "*prunable*\n" + label
             tokens=label.split("/")

@@ -16,7 +16,7 @@ lock = Semaphore(1)
 mutex= Lock()
 
 from .prune_env import PruneEnv
-from examples.classification.main import main as imgnet
+from examples.torch.classification.main import main as imgnet
 
 from copy import deepcopy
 import logging, pandas
@@ -172,7 +172,6 @@ def create_app() -> Flask:
                 for ii, item in enumerate(features_per_node['cluster_id']):
                     features_per_node['cluster_id'][ii] = features_per_node['cluster_id'][ii].tolist()
                     features_per_node['optype'][ii] = features_per_node['optype'][ii].tolist()
-
 
                 feature_dict = features_per_node.to_dict()
 
