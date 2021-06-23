@@ -39,7 +39,7 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh &
 RUN git clone https://github.com/vuiseng9/nncf && \
     cd nncf && git checkout paas && \
     pip install -e . \
-    pip install -r examples/requirements.txt && \
+    pip install -r examples/torch/requirements.txt && \
     pip install ipython jupyterlab pygraphviz more_itertools && \
     rm -rf ~/.cache/pip/* && \
     ninja_executable=$(python -c "import ninja; print(ninja.__path__[0])")/data/bin/ninja && \
