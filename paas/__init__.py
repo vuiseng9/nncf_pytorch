@@ -34,7 +34,7 @@ def init_workload():
             '--log-dir', '/tmp/paas-imgnet-log/',  
             '--config', os.environ['config'],
             '--data',   os.environ['data']]
-        return imgnet(_args)
+        return PruneEnv(*imgnet(_args))
     else:
         raise ValueError("Environment variable workload is not valid")
 
@@ -86,7 +86,7 @@ def create_app() -> Flask:
     app = Flask(__name__)
     acquire_lock("WorkloadInit")
     t1 = time.time()
-    env = PruneEnv(*(init_workload()))
+    env = init_workload()
     max_thread_time = int(5*(time.time()-t1))
     prRed("max_thread_time="+str(max_thread_time)+" sec.")
     release_lock("WorkloadInit")

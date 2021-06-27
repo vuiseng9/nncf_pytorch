@@ -162,7 +162,7 @@ def main_worker(current_gpu, config: SampleConfig):
     compression_ctrl, model = create_compressed_model(model, nncf_config, resuming_state_dict=resuming_model_sd)
 
     if config.restful is True:
-        def eval_fn(model, eval_loader):
+        def eval_fn(model=model, eval_loader=val_loader):
             top1, top5 = validate(eval_loader, model, criterion, config)
             return {'top1': top1, 'top5': top5}
         return compression_ctrl, model, nncf_config, eval_fn, train_loader, val_loader

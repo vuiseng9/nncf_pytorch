@@ -70,7 +70,7 @@ class PruneEnv:
 
     def evaluate_valset(self, pruning_rate_cfg):
         self.pruning_controller.set_pruning_rate(pruning_rate_cfg)
-        return self.evaluator(self.pruned_model, self.val_loader)
+        return self.evaluator()
 
     def restore_dense_model(self):
         # note that statistics are only extracted upon call;
