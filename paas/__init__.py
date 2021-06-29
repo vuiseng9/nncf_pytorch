@@ -17,9 +17,10 @@ mutex= Lock()
 
 from .prune_env import PruneEnv
 from examples.classification.main import main as imgnet
-
+from .mmdetection_tools.train import main as face_detection
 from copy import deepcopy
 import logging, pandas
+from datetime import datetime
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.INFO)
 def prRed(prt): print("\033[91m {}\033[00m".format(prt),flush=True)
@@ -35,6 +36,26 @@ def init_workload():
             '--config', os.environ['config'],
             '--data',   os.environ['data']]
         return PruneEnv(*imgnet(_args))
+    elif os.environ['workload'] == 'facedet':
+        run_id = '{:%Y-%m-%d__%H-%M-%S}'.format(datetime.now())
+        work_dir = '/tmp/paas-facedet-log/face-detection-0200-{}'.format(run_id)
+        _args = [
+            os.environ['config'],
+            "--update_config", 
+            "data.train.dataset.ann_file={}/instances_train_quarter.json".format(os.environ['data']),
+            "data.train.dataset.img_prefix={}".format(os.environ['data']),
+            "data.val.ann_file={}/instances_val.json".format(os.environ['data']),
+            "data.val.img_prefix={}".format(os.environ['data']),
+            "load_from={}".format(os.environ['ckpt']),
+            "--work-dir", work_dir,
+            "--tensorboard-dir", work_dir,
+            "--gpu-ids", "0"
+        ]
+        controller, pruned_model, mmdet_cfg, eval_fn = face_detection(_args)   
+        controller.config['log_dir']=mmdet_cfg.work_dir
+        controller.config['restful']=mmdet_cfg.restful
+        controller.config['eval_cache']=mmdet_cfg.get('eval_cache', True)
+        return PruneEnv(controller, controller._model, controller.config, eval_fn, None, None)
     else:
         raise ValueError("Environment variable workload is not valid")
 
