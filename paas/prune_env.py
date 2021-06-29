@@ -106,7 +106,11 @@ class PruneEnv:
                     module._input_shape  = input_[0].shape
                     module._output_shape = output.shape
 
-            hook_list = [m.register_forward_hook(annotate_io_shape) for n, m in model.named_modules()]
+            hook_list = [] 
+            for n, m in model.named_modules():
+                if isinstance(m, nn.Conv2d):
+                    hook_list.append(m.register_forward_hook(annotate_io_shape))
+
             model.do_dummy_forward(force_eval=True)
             for h in hook_list:
                 h.remove()
