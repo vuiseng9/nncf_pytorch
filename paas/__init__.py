@@ -316,9 +316,6 @@ def create_app() -> Flask:
                     'input_pruning_rate': pruning_rate_cfg,
                     'layerwise_stats': env.layerwise_stats}
 
-                # restoration of dense state dict must be after stats collection
-                # as statistics are only extracted upon collection
-                env.restore_dense_model()
                 jsonresponse['processing_time'] = str(end_time - start_time)
 
                 if env.nncf_cfg.get('eval_cache', True) is True:                  
@@ -332,6 +329,9 @@ def create_app() -> Flask:
                     with open(evaluated_cfg_hash_filename, 'w') as f:
                         json.dump(jsonresponse, f, indent=4)
 
+                # restoration of dense state dict must be after stats collection
+                # as statistics are only extracted upon collection
+                env.restore_dense_model()
             finally:
                 gc.collect()
                 release_lock("evaluate")
