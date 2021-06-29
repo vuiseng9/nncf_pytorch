@@ -36,8 +36,23 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh &
 # ENV NVIDIA_VISIBLE_DEVICES all
 # ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 
+ENV TORCH_VERSION=1.8.1
+ENV TORCHVISION_VERSION=0.9.1
+ENV MMCV_VERSION=1.3.0
+ENV CUDA_VERSION_CODE=102
+ENV MMDETECTION_DIR=ov-train-ext/external/mmdetection
+
+RUN git clone https://github.com/openvinotoolkit/training_extensions ov-train-ext && \
+    cd ov-train-ext && git submodule update --init external/mmdetection && \
+    pip install -e ote && \
+    pip install torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} && \
+    pip uninstall -y mmcv && \
+    pip install "git+https://github.com/open-mmlab/cocoapi.git#subdirectory=pycocotools" && \
+    pip install --no-cache-dir mmcv-full==${MMCV_VERSION} -f https://download.openmmlab.com/mmcv/dist/cu${CUDA_VERSION_CODE}/torch${TORCH_VERSION}/index.html && \
+    pip install -e external/mmdetection && pip uninstall nncf
+
 RUN git clone https://github.com/vuiseng9/nncf && \
-    cd nncf && git checkout paas && \
+    cd nncf && git checkout paas-stable && \
     pip install -e . \
     pip install -r examples/requirements.txt && \
     pip install ipython jupyterlab pygraphviz more_itertools && \
