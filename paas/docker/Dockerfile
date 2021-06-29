@@ -47,6 +47,7 @@ RUN git clone https://github.com/openvinotoolkit/training_extensions ov-train-ex
     pip install -e ote && \
     pip install torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} && \
     pip uninstall -y mmcv && \
+    pip install cython && \
     pip install "git+https://github.com/open-mmlab/cocoapi.git#subdirectory=pycocotools" && \
     pip install --no-cache-dir mmcv-full==${MMCV_VERSION} -f https://download.openmmlab.com/mmcv/dist/cu${CUDA_VERSION_CODE}/torch${TORCH_VERSION}/index.html && \
     pip install -e external/mmdetection && pip uninstall nncf
