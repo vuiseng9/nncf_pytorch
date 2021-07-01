@@ -21,9 +21,10 @@ class PruneEnv:
             self.nncf_cfg = nncf_cfg
             self.evaluator = evaluator
             self.tester = tester
-
         else:
             raise ValueError("PruneEnv requires a filter-prune wrapped controller and model")
+        self.base_ft_cfg = self.get_filter_pruning_algo_cfg()
+        assert self.base_ft_cfg is not None, "PruneEnv does not instantiated with a valid nncf cfg that contains filter pruning"
         self.pruned_model_init_sd = deepcopy(self.pruned_model.state_dict())
         self.df = self.extract_prunable_layer_features()
         self.node_type_lut, self.connectivity_lut = self.extract_graph_connectivity()
@@ -76,6 +77,42 @@ class PruneEnv:
         self.pruning_controller.set_pruning_rate(pruning_rate_cfg)
         return self.tester()
 
+    def get_filter_pruning_algo_cfg(self):
+        def _finditem(obj, key):
+            if isinstance(obj, list):
+                for e in obj:
+                    item = _finditem(e, key) 
+                    if item is not None:
+                        return item
+            elif isinstance(obj, dict):
+                if key in obj: return obj
+                for k, v in obj.items():
+                    item = _finditem(v, key)
+                    if item is not None:
+                        return item
+            return None
+        compression = _finditem(self.nncf_cfg, 'algorithm')
+        filter_pruning_algo_cfg = None
+        if compression is not None:
+            if compression['algorithm'] == 'filter_pruning':
+                filter_pruning_algo_cfg = deepcopy(compression)
+        return filter_pruning_algo_cfg
+
+    def generate_ft_cfg(self, pruning_rate_cfg):
+        gencfg = deepcopy(self.base_ft_cfg)
+        if 'params' not in gencfg:
+            gencfg['params'] = dict()
+        gencfg['params']['groupwise_pruning_cfg'] = pruning_rate_cfg
+        gencfg['params']['schedule'] = "paas_ft"
+        gencfg['params']['pruning_init'] = 0.0
+        gencfg['params']['pruning_target'] = 0.0
+        gencfg['params']['num_init_steps'] = 0
+        gencfg['params']['pruning_steps'] = 100
+        if 'hw_config_type' in gencfg:
+            del gencfg['hw_config_type']
+
+        return gencfg
+
     def restore_dense_model(self):
         # note that statistics are only extracted upon call;
         # hence restoration of dense state dict should be after any stats collection 
@@ -86,7 +123,6 @@ class PruneEnv:
             for node in cluster.nodes:
                 print("Group {:2d} | {:3d} | {}".format(cluster.id, node.nncf_node_id, node.module_scope.__str__()))
             print("----------------------------------------------------------------------------------------------")
-
 
     def extract_prunable_layer_features(self):
         def get_layer_attr(m):        

@@ -280,7 +280,6 @@ def create_app() -> Flask:
             jsonresponse = {'rc': -1, 'msg': 'Server busy'}
             return jsonresponse
 
-
     @app.route('/evaluate', methods=['POST'])
     def validate_cfg():
         return evaluate(eval_type="evaluate")
@@ -288,7 +287,6 @@ def create_app() -> Flask:
     @app.route('/test', methods=['POST'])
     def test_cfg():
         return evaluate(eval_type="test")
-
 
     def evaluate(eval_type):
         #Code snippet for debugging purposes only
@@ -348,7 +346,8 @@ def create_app() -> Flask:
                     'effective_pruning_rate': env.effective_pruning_rate,
                     'groupwise_pruning_rate': env.groupwise_pruning_rate,
                     'input_pruning_rate': pruning_rate_cfg,
-                    'layerwise_stats': env.layerwise_stats}
+                    'layerwise_stats': env.layerwise_stats,
+                    'ft_cfg': env.generate_ft_cfg(pruning_rate_cfg)}
 
                 jsonresponse['processing_time'] = str(end_time - start_time)
 
