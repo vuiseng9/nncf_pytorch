@@ -685,6 +685,8 @@ FILTER_PRUNING_SCHEMA = {
                                                  description="Whether to setting gradients corresponding to zeroed"
                                                              " filters to zero during training, `True` by default.",
                                                  default=True),
+                    "groupwise_pruning_cfg": with_attributes({"type": "object"},
+                                                 description="Levels of pruning ratio per group of conv layers"),
 
                 },
                 "additionalProperties": False,

@@ -212,3 +212,24 @@ class ExponentialWithBiasPruningScheduler(PruningScheduler):
         a = get_a(k)
         b = get_b(a)
         return a, b, k
+
+
+@PRUNING_SCHEDULERS.register("paas_ft")
+class PaasFTScheduler(PruningScheduler):
+    """
+    NEMO/PAAS Fine-tuning on frozen groupwise pruning ratio
+    """
+
+    def __init__(self, controller, params: dict):
+        super().__init__(controller, params)
+        self.freeze_epoch = self.num_warmup_epochs
+        self.num_warmup_epochs = 0 # Freezing these per paas use-cases
+        self.num_pruning_epochs = 100 # Freezing these per paas use-cases
+        group_id_list = list(map(lambda x: x.id, controller.pruned_module_groups_info.get_all_clusters()))
+        groupwise_pruning_cfg = params.get('groupwise_pruning_cfg', None)
+        assert len(group_id_list) == len(groupwise_pruning_cfg)
+        
+        self.groupwise_pruning_cfg= {int(gid): ratio for gid, ratio in groupwise_pruning_cfg.items()}
+
+    def _calculate_pruning_level(self) -> float:
+        return self.groupwise_pruning_cfg

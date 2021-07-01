@@ -4,6 +4,7 @@ import torch.nn as nn
 
 import pandas as pd
 import numpy as np
+import json
 
 import networkx as nx
 from networkx.drawing.nx_agraph import to_agraph
@@ -104,14 +105,14 @@ class PruneEnv:
             gencfg['params'] = dict()
         gencfg['params']['groupwise_pruning_cfg'] = pruning_rate_cfg
         gencfg['params']['schedule'] = "paas_ft"
-        gencfg['params']['pruning_init'] = 0.0
+        gencfg['pruning_init'] = 0.0
         gencfg['params']['pruning_target'] = 0.0
         gencfg['params']['num_init_steps'] = 0
         gencfg['params']['pruning_steps'] = 100
         if 'hw_config_type' in gencfg:
             del gencfg['hw_config_type']
 
-        return gencfg
+        return json.loads(json.dumps(gencfg))
 
     def restore_dense_model(self):
         # note that statistics are only extracted upon call;

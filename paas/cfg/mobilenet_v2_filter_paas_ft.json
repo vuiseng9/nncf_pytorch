@@ -1,0 +1,62 @@
+{
+    "restful": false,
+    "model": "mobilenet_v2",
+    "pretrained": true,
+    "input_info": {
+      "sample_size": [1, 3, 224, 224]
+    },
+    "batch_size": 200,
+    "workers": 6,
+    "epochs": 100,
+    // "multiprocessing_distributed": true,
+    "optimizer": {
+        "base_lr": 3.1e-4,
+        "schedule_type": "plateau",
+        "type": "Adam",
+        "schedule_params": {
+            "threshold": 0.1,
+            "cooldown": 3
+        },
+        "weight_decay": 1e-05
+    },
+   "compression": [
+       {
+           "algorithm": "filter_pruning",
+           "pruning_init": 0.0,
+            "params": {
+                "schedule": "paas_ft",
+                "weight_importance": "L1",
+                "prune_downsample_convs" : true,
+                "prune_first_conv": true,
+                "prune_last_conv": true,
+                "groupwise_pruning_cfg":
+                {
+                    "0": 0.0,
+                    "1": 0.0,
+                    "2": 0.0,
+                    "3": 0.083333336,
+                    "4": 0.2,
+                    "5": 0.25,
+                    "6": 0.0,
+                    "7": 0.25,
+                    "8": 0.055555556,
+                    "9": 0.055555556,
+                    "10": 0.041666668,
+                    "11": 0.0,
+                    "12": 0.0,
+                    "13": 0.020833334,
+                    "14": 0.020833334,
+                    "15": 0.020833334,
+                    "16": 0.0,
+                    "17": 0.013888889,
+                    "18": 0.013888889,
+                    "19": 0.0,
+                    "20": 0.008333334,
+                    "21": 0.008333334,
+                    "22": 0.008333334,
+                    "23": 0.0
+                }
+            }
+        }
+   ]
+}

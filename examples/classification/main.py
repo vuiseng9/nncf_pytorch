@@ -161,7 +161,7 @@ def main_worker(current_gpu, config: SampleConfig):
     resuming_model_sd, resuming_checkpoint = load_resuming_checkpoint(resuming_checkpoint_path)
     compression_ctrl, model = create_compressed_model(model, nncf_config, resuming_state_dict=resuming_model_sd)
 
-    if config.restful is True:
+    if config.get('restful', False) is True:
         _, _, val_loader, _ = create_data_loaders(config, train_dataset, train_dataset)
         _, _, test_loader, _ = create_data_loaders(config, train_dataset, val_dataset)
 
