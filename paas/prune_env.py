@@ -14,14 +14,14 @@ from copy import deepcopy
 from collections import defaultdict
 class PruneEnv:
     def __init__(self, 
-        pruning_controller, pruned_model, nncf_cfg, evaluator, train_loader, val_loader):
+        pruning_controller, pruned_model, nncf_cfg, evaluator, tester):
         if isinstance(pruning_controller, FilterPruningController):
             self.pruning_controller = pruning_controller
             self.pruned_model = pruned_model
             self.nncf_cfg = nncf_cfg
             self.evaluator = evaluator
-            self.train_loader = train_loader
-            self.val_loader = val_loader
+            self.tester = tester
+
         else:
             raise ValueError("PruneEnv requires a filter-prune wrapped controller and model")
         self.pruned_model_init_sd = deepcopy(self.pruned_model.state_dict())
@@ -71,6 +71,10 @@ class PruneEnv:
     def evaluate_valset(self, pruning_rate_cfg):
         self.pruning_controller.set_pruning_rate(pruning_rate_cfg)
         return self.evaluator()
+
+    def evaluate_testset(self, pruning_rate_cfg):
+        self.pruning_controller.set_pruning_rate(pruning_rate_cfg)
+        return self.tester()
 
     def restore_dense_model(self):
         # note that statistics are only extracted upon call;

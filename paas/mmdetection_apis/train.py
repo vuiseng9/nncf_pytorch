@@ -21,6 +21,7 @@ from mmdet.apis.fake_input import get_fake_input
 from functools import partial
 from mmcv import ProgressBar
 from mmcv.runner.log_buffer import LogBuffer
+from torch.utils.data import dataloader
 
 def set_random_seed(seed, deterministic=False):
     """Set random seed.
@@ -188,8 +189,7 @@ def train_detector(model,
         eval_hook = DistEvalHook if distributed else EvalHook
         if nncf_enable_compression:
             eval_hook = DistEvalPlusBeforeRunHook if distributed else EvalPlusBeforeRunHook
-        if cfg.get('restful', None) is None:
-            runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
+        runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
 
     if nncf_enable_compression:
         runner.register_hook(CompressionHook(compression_ctrl=compression_ctrl))
@@ -213,8 +213,6 @@ def train_detector(model,
 
     if cfg.get('restful', None) is not None:
         if cfg.restful is True:
-            # return compression_ctrl, model, cfg, partial(eval_hook(val_dataloader, **eval_cfg).before_run, runner=runner)
-
             def single_gpu_eval_loss(model, data_loader, compression_ctrl):
                 model.eval()
                 loss_parser=compression_ctrl._model.get_nncf_wrapped_model()._parse_losses
@@ -233,7 +231,16 @@ def train_detector(model,
                 log_buffer.average()
                 return log_buffer.output
 
-            eval_loss_fn = partial(single_gpu_eval_loss, model=model, data_loader=data_loaders[0], compression_ctrl=compression_ctrl)
-            return compression_ctrl, model, cfg, eval_loss_fn
+            # return compression_ctrl, model, cfg, partial(eval_hook(val_dataloader, **eval_cfg).before_run, runner=runner)
+            from mmdet.apis import single_gpu_test
+            def single_gpu_test_fn(model, dataloader):
+                results = single_gpu_test(model, dataloader, show=False)
+                key_score = val_dataset.evaluate(results)
+                return key_score
+                
+            test_fn = partial(single_gpu_test_fn, model=model, dataloader=val_dataloader)
+
+            val_loss_fn = partial(single_gpu_eval_loss, model=model, data_loader=data_loaders[0], compression_ctrl=compression_ctrl)
+            return compression_ctrl, model, cfg, val_loss_fn, test_fn
 
     runner.run(data_loaders, cfg.workflow, compression_ctrl=compression_ctrl)

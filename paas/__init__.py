@@ -51,11 +51,11 @@ def init_workload():
             "--tensorboard-dir", work_dir,
             "--gpu-ids", "0"
         ]
-        controller, pruned_model, mmdet_cfg, eval_fn = face_detection(_args)   
+        controller, pruned_model, mmdet_cfg, val_fn, test_fn = face_detection(_args)   
         controller.config['log_dir']=mmdet_cfg.work_dir
         controller.config['restful']=mmdet_cfg.restful
         controller.config['eval_cache']=mmdet_cfg.get('eval_cache', True)
-        return PruneEnv(controller, controller._model, controller.config, eval_fn, None, None)
+        return PruneEnv(controller, controller._model, controller.config, val_fn, test_fn)
     else:
         raise ValueError("Environment variable workload is not valid")
 
@@ -282,7 +282,15 @@ def create_app() -> Flask:
 
 
     @app.route('/evaluate', methods=['POST'])
-    def evaluate():
+    def validate_cfg():
+        return evaluate(eval_type="evaluate")
+
+    @app.route('/test', methods=['POST'])
+    def test_cfg():
+        return evaluate(eval_type="test")
+
+
+    def evaluate(eval_type):
         #Code snippet for debugging purposes only
         start_time = time.time()
         #=================
@@ -291,6 +299,7 @@ def create_app() -> Flask:
         try:
             content = request.get_json()
             pruning_rate_cfg = {int(gid): round(pr, 4) for gid, pr in content.items()}
+            assert eval_type == "evaluate" or eval_type == "test"
         except:
             prRed("Exception in parsing http request")
             return {'rc': -3, 'msg': 'Exception in parsing http request'}
@@ -307,7 +316,7 @@ def create_app() -> Flask:
             os.makedirs(cache_dir, exist_ok=True)
             
             input_cfg_hash = hashlib.md5(json.dumps(pruning_rate_cfg).encode('utf-8')).hexdigest()
-            input_cfg_hash_filename = os.path.join(cache_dir, input_cfg_hash+".json")
+            input_cfg_hash_filename = os.path.join(cache_dir, eval_type+"_"+input_cfg_hash+".json")
             
             if os.path.exists(input_cfg_hash_filename):
                 prRed("Recycling: {}".format(pruning_rate_cfg))
@@ -320,13 +329,17 @@ def create_app() -> Flask:
         if acquire_lock("evaluate"):
             try:
                 prRed("Evaluating: {}".format(pruning_rate_cfg))
-                retval = env.evaluate_valset(pruning_rate_cfg)
+                if eval_type == "evaluate":
+                    retval = env.evaluate_valset(pruning_rate_cfg)
+                elif eval_type == "test":
+                    retval = env.evaluate_testset(pruning_rate_cfg)
                 end_time = time.time()
 
                 jsonresponse = dict()
                 jsonresponse['rc'] = 0
                 jsonresponse['msg'] = 'Prune and inference completed'
                 jsonresponse['meta_data'] = {
+                    'eval_type': eval_type,
                     'task_metric': retval,
                     'original_flops': env.original_flops,
                     'remaining_flops': env.remaining_flops,
@@ -341,7 +354,7 @@ def create_app() -> Flask:
 
                 if env.nncf_cfg.get('eval_cache', True) is True:                  
                     evaluated_cfg_hash = hashlib.md5(json.dumps(env.groupwise_pruning_rate).encode('utf-8')).hexdigest()
-                    evaluated_cfg_hash_filename = os.path.join(cache_dir, evaluated_cfg_hash+".json")
+                    evaluated_cfg_hash_filename = os.path.join(cache_dir, eval_type+"_"+evaluated_cfg_hash+".json")
 
                     prCyan("Writing input cfg to " + input_cfg_hash_filename)
                     with open(input_cfg_hash_filename, 'w') as f:
