@@ -240,7 +240,16 @@ def train(config, compression_ctrl, model, criterion, criterion_fn, lr_scheduler
         acc1 = best_acc1
         if epoch % config.test_every_n_epochs == 0:
             # evaluate on validation set
-            acc1, _ = validate(val_loader, model, criterion, config)
+            acc1, acc5 = validate(val_loader, model, criterion, config)
+            if compression_ctrl.__class__.__name__ == 'FilterPruningController':
+                full_flops = compression_ctrl.full_flops
+                current_flops = compression_ctrl.current_flops
+                current_flop_ratio = current_flops/full_flops
+                current_weight_ratio = 1-compression_ctrl._calculate_global_weight_pruning_rate()
+
+                logger.info('#PAAS# | Val Epoch: {epoch} | Acc@1: {top1:.3f} | Acc@5: {top5:.3f} |'
+                            ' flop_ratio: {flop_ratio:.5f} | size_ratio: {size_ratio:.5f}\n'.format(
+                                epoch=epoch, top1=acc1, top5=acc5, flop_ratio=current_flop_ratio, size_ratio=current_weight_ratio))
 
         compression_level = compression_ctrl.compression_level()
         # remember best acc@1, considering compression level. If current acc@1 less then the best acc@1, checkpoint
@@ -270,8 +279,13 @@ def train(config, compression_ctrl, model, criterion, criterion_fn, lr_scheduler
                 'scheduler': compression_ctrl.scheduler.get_state()
             }
 
-            torch.save(checkpoint, checkpoint_path)
-            make_additional_checkpoints(checkpoint_path, is_best, epoch + 1, config)
+            if config.get("only_best_ckpt", True): 
+                if is_best:
+                    best_path = osp.join(config.checkpoint_save_dir, '{}_best.pth'.format(config.name))
+                    torch.save(checkpoint, best_path)
+            else:
+                torch.save(checkpoint, checkpoint_path)
+                make_additional_checkpoints(checkpoint_path, is_best, epoch + 1, config)
 
             for key, value in stats.items():
                 if isinstance(value, (int, float)):
