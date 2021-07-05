@@ -201,6 +201,9 @@ class FilterPruningController(BasePruningAlgoController):
                                                  linear_op_types=['linear'])
         for h in hook_list:
             h.remove()
+        ## TEMPFIX
+        self._modules_in_shapes = in_shapes
+        self._modules_out_shapes = out_shapes
 
     def _calculate_flops_pruned_model_by_masks(self) -> float:
         """
@@ -239,16 +242,26 @@ class FilterPruningController(BasePruningAlgoController):
         :param modules_out_channels: numbers of output channels in model
         :return: number of flops in model
         """
-        flops = 0
-        graph = self._model.get_original_graph()
-        for nncf_node in graph.get_all_nodes():
-            scope = nncf_node.ia_op_exec_context.scope_in_model
-            if scope in modules_in_channels:
-                flops += int(modules_in_channels[scope] * modules_out_channels[scope] * \
-                         self.nodes_flops_cost[scope])
-            elif scope in self.nodes_flops:
-                flops += self.nodes_flops[scope]
-        return flops
+        # flops = 0
+        # graph = self._model.get_original_graph()
+        # for nncf_node in graph.get_all_nodes():
+        #     scope = nncf_node.ia_op_exec_context.scope_in_model
+        #     if scope in modules_in_channels:
+        #         flops += int(modules_in_channels[scope] * modules_out_channels[scope] * \
+        #                  self.nodes_flops_cost[scope])
+        #     elif scope in self.nodes_flops:
+        #         flops += self.nodes_flops[scope]
+        # return flops
+
+        ## TEMPFIX
+        flops_per_node = count_flops_for_nodes(graph=self._model.get_original_graph(), 
+                            input_shapes=self._modules_in_shapes, 
+                            output_shapes=self._modules_out_shapes,
+                            conv_op_types=[v.op_func_name for v in NNCF_GENERAL_CONV_MODULES_DICT],
+                            linear_op_types=['linear'],
+                            input_channels=modules_in_channels, 
+                            output_channels=modules_out_channels)
+        return sum(flops_per_node.values())
 
     def _calculate_flops_in_uniformly_pruned_model(self, pruning_rate: float) -> float:
         """
