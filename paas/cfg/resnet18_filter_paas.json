@@ -2,7 +2,7 @@
     "restful": true,
     "model": "resnet18",
     "pretrained": true,
-    "batch_size" : 512,
+    "batch_size" : 512, // eval @ ~5MB on a single card
     "epochs": 100,
     "input_info": {
       "sample_size": [1, 3, 224, 224]
@@ -16,6 +16,7 @@
                 "prune_downsample_convs" : true,
                 "prune_first_conv": true,
                 "prune_last_conv": true,
+                "prune_batch_norms": true,
             }
         }
    ]
