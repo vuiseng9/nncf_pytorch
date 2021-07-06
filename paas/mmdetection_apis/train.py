@@ -189,11 +189,11 @@ def train_detector(model,
         eval_hook = DistEvalHook if distributed else EvalHook
         if nncf_enable_compression:
             eval_hook = DistEvalPlusBeforeRunHook if distributed else EvalPlusBeforeRunHook
-        runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
+        runner.register_hook(eval_hook(val_dataloader, save_best='auto', **eval_cfg))
 
     if nncf_enable_compression:
-        runner.register_hook(CompressionHook(compression_ctrl=compression_ctrl))
-        runner.register_hook(CheckpointHookBeforeTraining())
+        runner.register_hook(PAASCompressionHook(compression_ctrl=compression_ctrl))
+        # runner.register_hook(CheckpointHookBeforeTraining())
     # user-defined hooks
     if cfg.get('custom_hooks', None):
         custom_hooks = cfg.custom_hooks
@@ -244,3 +244,62 @@ def train_detector(model,
             return compression_ctrl, model, cfg, val_loss_fn, test_fn
 
     runner.run(data_loaders, cfg.workflow, compression_ctrl=compression_ctrl)
+
+
+# Following are localized from
+# /home/vchua/ote-fd/ov-train-ext/external/mmdetection/mmdet/integration/nncf/compression_hooks.py
+# with patches for PAAS fine-tuning
+from mmcv.runner.hooks.hook import HOOKS, Hook
+from mmcv.runner.dist_utils import master_only
+
+class PAASEvalPlusBeforeRunHook(EvalHook):
+    """Evaluation hook, adds evaluation before training.
+    """
+
+    def before_run(self, runner):
+        from mmdet.apis import single_gpu_test
+        results = single_gpu_test(runner.model, self.dataloader, show=False)
+        self.evaluate(runner, results)
+
+@HOOKS.register_module()
+class PAASCompressionHook(Hook):
+    def __init__(self, compression_ctrl=None):
+        self.compression_ctrl = compression_ctrl
+
+    def after_train_iter(self, runner):
+        self.compression_ctrl.scheduler.step()
+
+    def before_train_epoch(self, runner):
+        self.compression_ctrl.scheduler.epoch_step()
+        
+    def after_train_epoch(self, runner):
+        print_statistics(self.compression_ctrl.statistics(), runner.logger)
+        
+        if self.compression_ctrl.__class__.__name__ == 'FilterPruningController':
+            result_str = ' '.join(['{}: {} |'.format(k, v) for k, v in runner.log_buffer.output.items()])
+
+            full_flops = self.compression_ctrl.full_flops
+            current_flops = self.compression_ctrl.current_flops
+            current_flop_ratio = current_flops/full_flops
+            current_weight_ratio = 1-self.compression_ctrl._calculate_global_weight_pruning_rate()
+
+            runner.logger.info('#PAAS# | Val Epoch: {epoch} | {eval_res} flop_ratio: {flop_ratio:.5f} | size_ratio: {size_ratio:.5f}'.format(
+                 epoch=runner.epoch, eval_res=result_str, flop_ratio=current_flop_ratio, size_ratio=current_weight_ratio))
+
+    def before_run(self, runner):
+        if runner.rank == 0:
+            print_statistics(self.compression_ctrl.statistics(), runner.logger)
+
+def print_statistics(stats, logger):
+    try:
+        from texttable import Texttable
+        texttable_imported = True
+    except ImportError:
+        texttable_imported = False
+
+    for key, val in stats.items():
+        if texttable_imported and isinstance(val, Texttable):
+            logger.info(key)
+            logger.info(val.draw())
+        else:
+            logger.info('{}: {}'.format(key, val))

@@ -27,7 +27,8 @@ from mmdet.datasets.pipelines import Compose
 from mmdet.integration.nncf import check_nncf_is_enabled, get_nncf_metadata
 from mmdet.models import TwoStageDetector, build_detector
 from mmdet.utils import ExtendedDictAction, collect_env, get_root_logger
-
+import sys
+from datetime import datetime
 
 def parse_args(args):
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -208,6 +209,11 @@ def main(argv):
         # use config filename as default work_dir if cfg.work_dir is None
         cfg.work_dir = osp.join('./work_dirs',
                                 osp.splitext(osp.basename(args.config))[0])
+
+    # time-stamping in workdir
+    run_id = '{:%Y-%m-%d__%H-%M-%S}'.format(datetime.now())
+    cfg.work_dir = osp.join(cfg.work_dir, run_id)
+
     if args.resume_from is not None:
         cfg.resume_from = args.resume_from
     if args.gpu_ids is not None:
@@ -242,6 +248,12 @@ def main(argv):
         hooks = [hook for hook in cfg.log_config.hooks if hook.type == 'TensorboardLoggerHook']
         if hooks:
             hooks[0].log_dir = args.tensorboard_dir
+        else:
+            logger.warning('Failed to find TensorboardLoggerHook')
+    else:
+        hooks = [hook for hook in cfg.log_config.hooks if hook.type == 'TensorboardLoggerHook']
+        if hooks:
+            hooks[0].log_dir = cfg.work_dir
         else:
             logger.warning('Failed to find TensorboardLoggerHook')
 

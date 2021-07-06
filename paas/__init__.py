@@ -37,8 +37,9 @@ def init_workload():
             '--data',   os.environ['data']]
         return PruneEnv(*imgnet(_args))
     elif os.environ['workload'] == 'facedet':
-        run_id = '{:%Y-%m-%d__%H-%M-%S}'.format(datetime.now())
-        work_dir = '/tmp/paas-facedet-log/face-detection-0200-{}'.format(run_id)
+        # run_id = '{:%Y-%m-%d__%H-%M-%S}'.format(datetime.now())
+        # work_dir = '/tmp/paas-facedet-log/face-detection-0200-{}'.format(run_id)
+        work_dir = '/tmp/paas-facedet-log/face-detection-0200'
         _args = [
             os.environ['config'],
             "--update_config", 
@@ -48,7 +49,6 @@ def init_workload():
             "data.val.img_prefix={}".format(os.environ['data']),
             "load_from={}".format(os.environ['ckpt']),
             "--work-dir", work_dir,
-            "--tensorboard-dir", work_dir,
             "--gpu-ids", "0"
         ]
         controller, pruned_model, mmdet_cfg, val_fn, test_fn = face_detection(_args)   
