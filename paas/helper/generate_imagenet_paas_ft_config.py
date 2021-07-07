@@ -96,7 +96,7 @@ class BaseFTCfg():
             "optimizer": {
                 "base_lr": 0.00031,
                 "schedule_type": "exponential",
-                "gamma": 0.9, 
+                "gamma": 0.95, 
                 "type": "Adam"
             },
         "compression": None
