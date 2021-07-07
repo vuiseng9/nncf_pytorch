@@ -106,14 +106,14 @@ class BaseFTCfg():
 class MobileNetV2_FTCfg(BaseFTCfg):
     def __init__(self):
         super().__init__('mobilenet_v2')
-        self.set_batch_size(200)
+        self.set_batch_size(200) # about 8.2GB per card
         self.set_total_epoch(15)
         self.set_dist_processing(True)
 
 class ResNet50_FTCfg(BaseFTCfg):
     def __init__(self):
         super().__init__('resnet50')
-        self.set_batch_size(196)
+        self.set_batch_size(256) # about 8.1GB per card
         self.set_total_epoch(15)
         self.set_dist_processing(True)
 
