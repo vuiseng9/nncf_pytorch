@@ -1,0 +1,40 @@
+{
+    "algorithm": "filter_pruning",
+    "params": {
+        "groupwise_pruning_cfg": {
+            "0": 0.621,
+            "1": 0.831,
+            "10": 0.485,
+            "11": 0.036,
+            "12": 0.076,
+            "13": 0.444,
+            "14": 0.385,
+            "15": 0.613,
+            "16": 0.548,
+            "17": 0.784,
+            "18": 0.341,
+            "19": 0.779,
+            "2": 0.915,
+            "20": 0.246,
+            "21": 0.154,
+            "22": 0.38,
+            "23": 0.521,
+            "3": 0.082,
+            "4": 0.88,
+            "5": 0.212,
+            "6": 0.241,
+            "7": 0.363,
+            "8": 0.539,
+            "9": 0.498
+        },
+        "num_init_steps": 0,
+        "prune_downsample_convs": true,
+        "prune_first_conv": true,
+        "prune_last_conv": true,
+        "pruning_steps": 100,
+        "pruning_target": 0.0,
+        "schedule": "paas_ft",
+        "weight_importance": "L1"
+    },
+    "pruning_init": 0.0
+}
