@@ -3,8 +3,7 @@
 # This is an example of single gpu training
 
 RUNDIR=/workspace/face-detection-0200-paas-ft
-### !!! IMPORTANT - all config must be placed in this folder
-FTCFG=/home/vchua/ote-fd/nncf/paas/cfg/face-detection-0200/face-detection-0200.filter_pruning_ft.yaml
+FTCFG=/workspace/nncf/paas/cfg/face-detection-0200/face-detection-0200.filter_pruning_ft.yaml
 
 DATA=/workspace/WiderFace
 mkdir -p $RUNDIR

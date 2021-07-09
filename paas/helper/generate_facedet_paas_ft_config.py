@@ -83,7 +83,7 @@ class FaceDet200FTCfg():
     def get_base_ft_cfg(self):
         base_ft_cfg = \
         {
-            "_base_": "model.py",
+            "_base_": "/workspace/nncf/paas/cfg/face-detection-0200/model.py",
             "find_unused_parameters": True,
             "lr_config": {
                 "policy": "step",
