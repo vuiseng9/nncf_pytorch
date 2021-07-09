@@ -3,13 +3,16 @@
 # This is an example of single gpu training
 
 RUNDIR=/workspace/face-detection-0200-paas-ft
+### !!! IMPORTANT - all config must be placed in this folder
+FTCFG=/home/vchua/ote-fd/nncf/paas/cfg/face-detection-0200/face-detection-0200.filter_pruning_ft.yaml
+
 DATA=/workspace/WiderFace
 mkdir -p $RUNDIR
 
 export CUDA_VISIBLE_DEVICES=0
 cd /workspace/nncf/paas/mmdetection_tools
 python train.py \
-    /workspace/nncf/paas/cfg/face-detection-0200/face-detection-0200.filter_pruning_ft.yaml \
+    $FTCFG \
     --update_config \
     data.train.dataset.ann_file=$DATA/instances_train.json \
     data.train.dataset.img_prefix=$DATA \
