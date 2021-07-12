@@ -27,7 +27,7 @@ nncf_config:
       pruning_steps: 20
       pruning_target: 0.3
       schedule: exponential
-      weight_importance: L1
+      weight_importance: geometric_median
       prune_downsample_convs: true,
       prune_first_conv: true,
       prune_last_conv: true,

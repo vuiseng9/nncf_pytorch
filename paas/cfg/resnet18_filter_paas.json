@@ -12,7 +12,7 @@
            "algorithm": "filter_pruning",
            "pruning_init": 0.0,
             "params": {
-                "weight_importance": "L1",
+                "weight_importance": "geometric_median",
                 "prune_downsample_convs" : true,
                 "prune_first_conv": true,
                 "prune_last_conv": true,
