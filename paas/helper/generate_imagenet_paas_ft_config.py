@@ -94,10 +94,19 @@ class BaseFTCfg():
             "epochs": 15,
             "multiprocessing_distributed": True,
             "optimizer": {
-                "base_lr": 0.00031,
-                "schedule_type": "exponential",
-                "gamma": 0.95, 
-                "type": "Adam"
+                "type": "SGD",
+                "base_lr": 0.1,
+                "weight_decay": 0.0001,
+                "schedule_type": "multistep",
+                "steps": [
+                    3,
+                    9,
+                    12
+                ],
+                "optimizer_params": {
+                    "momentum": 0.9,
+                    "nesterov": True
+                }
             },
         "compression": None
         }
