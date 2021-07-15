@@ -100,6 +100,8 @@ def create_app() -> Flask:
         
     global concurrent_requests_value
     global max_thread_time
+    global hostname
+    hostname = os.environ['HOSTNAME']
     bEnvReady = False
     concurrent_requests_value = 0
 
@@ -337,6 +339,7 @@ def create_app() -> Flask:
                 jsonresponse['rc'] = 0
                 jsonresponse['msg'] = 'Prune and inference completed'
                 jsonresponse['meta_data'] = {
+                    'hostname': hostname,
                     'eval_type': eval_type,
                     'task_metric': retval,
                     'original_flops': env.original_flops,
