@@ -118,14 +118,18 @@ class MobileNetV2_FTCfg(BaseFTCfg):
         self.set_batch_size(200) # about 8.2GB per card when training on 2 cards
         self.set_total_epoch(15)
         self.set_dist_processing(True)
-
+class ResNet18_FTCfg(BaseFTCfg):
+    def __init__(self):
+        super().__init__('resnet18')
+        self.set_batch_size(512)
+        self.set_total_epoch(15)
+        self.set_dist_processing(True)
 class ResNet50_FTCfg(BaseFTCfg):
     def __init__(self):
         super().__init__('resnet50')
         self.set_batch_size(256) # about 8.1GB per card when training on 4 cards
         self.set_total_epoch(15)
         self.set_dist_processing(True)
-
 class ResNet101_FTCfg(BaseFTCfg):
     def __init__(self):
         super().__init__('resnet101')
