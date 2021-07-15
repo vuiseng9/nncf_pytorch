@@ -1,4 +1,4 @@
-_base_: model.py
+_base_: /workspace/nncf/paas/cfg/face-detection-0200/model.py
 find_unused_parameters: true
 lr_config:
   policy: step
